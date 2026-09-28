@@ -1,0 +1,47 @@
+syntax = "proto3";
+
+option csharp_namespace = "CloudSync.Contracts";
+
+package cloudsync.storage.v1;
+
+// Internal contract between the API gateway and storage worker nodes.
+// Dedup decisions are made by the gateway; workers store, verify and serve blobs.
+service BlobStorage {
+  // First message carries the header, the rest carry data frames (<= 1 MB each).
+  rpc PutBlob (stream PutBlobRequest) returns (PutBlobReply);
+  rpc ReadBlob (ReadBlobRequest) returns (stream BlobFrame);
+  rpc BlobExists (BlobExistsRequest) returns (BlobExistsReply);
+}
+
+message BlobHeader {
+  string hash = 1;
+  int64 size = 2;
+}
+
+message PutBlobRequest {
+  oneof payload {
+    BlobHeader header = 1;
+    bytes data = 2;
+  }
+}
+
+message PutBlobReply {
+  // True if bytes were physically written, false if the blob already existed.
+  bool created = 1;
+}
+
+message ReadBlobRequest {
+  string hash = 1;
+}
+
+message BlobFrame {
+  bytes data = 1;
+}
+
+message BlobExistsRequest {
+  string hash = 1;
+}
+
+message BlobExistsReply {
+  bool exists = 1;
+}
