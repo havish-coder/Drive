@@ -31,6 +31,13 @@ dotnet run --project src/CloudSync.Cli -- push big.iso --user me
 Config (`src/CloudSync.Api/appsettings.json`, or env vars like `CloudSync__Storage__Mode=Remote`):
 `Chunking:Algorithm` = `FixedSize` | `FastCdc`, `Storage:Mode` = `Local` | `Remote`, `Pipeline:Workers`.
 
+## Web UI
+
+Start the API and open <http://localhost:5000/>. Drag-and-drop upload in two modes (server-side chunking, or
+browser-side delta sync that hashes 4 MB blocks with `crypto.subtle` and sends only the missing ones), live
+dedup stats, SHA-256-verified downloads, and a per-file chunk map that outlines chunks shared with your other files.
+The page is a single static file (`src/CloudSync.Api/wwwroot/index.html`); no build step.
+
 ## API
 
 | Method | Path | |

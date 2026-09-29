@@ -105,6 +105,19 @@ public class ApiTests
     }
 
     [Fact]
+    public async Task Root_serves_the_web_ui()
+    {
+        using var dir = new TempDir();
+        await using var api = CreateApi(dir);
+        var http = api.CreateClient();
+
+        using var response = await http.GetAsync("/");
+        response.EnsureSuccessStatusCode();
+        Assert.Equal("text/html", response.Content.Headers.ContentType?.MediaType);
+        Assert.Contains("CloudSync", await response.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
     public async Task Files_are_private_to_their_owner()
     {
         using var dir = new TempDir();

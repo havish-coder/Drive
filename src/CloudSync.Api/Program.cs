@@ -8,6 +8,8 @@ builder.Services.AddCloudSync();
 var app = builder.Build();
 
 await app.Services.GetRequiredService<IMetadataRepository>().InitializeAsync();
+app.UseDefaultFiles();
+app.UseStaticFiles();
 app.MapCloudSyncEndpoints();
 
 app.Run();
