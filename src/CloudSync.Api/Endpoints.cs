@@ -32,7 +32,8 @@ public static class Endpoints
             var manifest = await files.GetManifestAsync(fileId, ctx.RequestAborted);
             return manifest is null || manifest.File.UserId != UserId(ctx) ? Results.NotFound() : Results.Ok(manifest);
         });
-        api.MapGet("/stats", async (HttpContext ctx, FileService files) =>
+        api.MapGet("/files/{fileId:guid}/chunks/{index:int}", DownloadChunkAsync);
+        api.MapGet("/stats",async (HttpContext ctx, FileService files) =>
             Results.Ok(await files.GetStatsAsync(ctx.RequestAborted)));
 
         api.MapPost("/sync/negotiate", (NegotiateRequest request, HttpContext ctx, FileService files) =>
@@ -105,6 +106,37 @@ public static class Endpoints
             // Headers are already sent; cutting the connection is the only honest signal left.
             logs.CreateLogger("CloudSync.Download").LogError(ex, "Aborting download of {FileId}", fileId);
             ctx.Abort();
+        }
+    }
+
+    // Scoped to a file (not a bare hash) so chunks are only reachable by an owner of a file containing them.
+    private static async Task DownloadChunkAsync(Guid fileId, int index, HttpContext ctx, FileService files, ILoggerFactory logs)
+    {
+        var manifest = await files.GetManifestAsync(fileId, ctx.RequestAborted);
+        if (manifest is null || manifest.File.UserId != UserId(ctx) ||
+            manifest.Chunks.FirstOrDefault(c => c.SequenceIndex == index) is not { } entry)
+        {
+            ctx.Response.StatusCode = StatusCodes.Status404NotFound;
+            return;
+        }
+
+        try
+        {
+            // Verified before any header is written, so a corrupt blob yields a real 500 rather than a cut-off 200.
+            using var chunk = await files.ReadChunkAsync(entry, ctx.RequestAborted);
+            ctx.Response.ContentType = "application/octet-stream";
+            ctx.Response.ContentLength = chunk.Length;
+            ctx.Response.Headers.ContentDisposition = new ContentDispositionHeaderValue("attachment")
+            {
+                FileNameStar = $"{manifest.File.FileName}.chunk{index}",
+            }.ToString();
+            ctx.Response.Headers["X-Chunk-SHA256"] = entry.ChunkHash;
+            await ctx.Response.Body.WriteAsync(chunk.Memory, ctx.RequestAborted);
+        }
+        catch (ChunkIntegrityException ex)
+        {
+            logs.CreateLogger("CloudSync.Download").LogError(ex, "Chunk {Index} of {FileId} failed verification", index, fileId);
+            ctx.Response.StatusCode = StatusCodes.Status500InternalServerError;
         }
     }
 

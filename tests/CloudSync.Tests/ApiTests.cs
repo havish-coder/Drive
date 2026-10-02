@@ -105,6 +105,58 @@ public class ApiTests
     }
 
     [Fact]
+    public async Task Single_chunk_download_returns_exact_verified_bytes_and_is_owner_only()
+    {
+        using var dir = new TempDir();
+        await using var api = CreateApi(dir); // 1 MB chunks
+        var http = api.CreateClient();
+        var data = RandomBytes(2 * MB + 500, seed: 28);
+        var uploaded = await UploadRawAsync(http, data, "parts.bin");
+        Assert.Equal(3, uploaded.ChunkCount);
+
+        async Task<HttpResponseMessage> Get(int index, string user = "alice")
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, $"/api/files/{uploaded.FileId}/chunks/{index}");
+            request.Headers.Add("X-User-Id", user);
+            return await http.SendAsync(request);
+        }
+
+        // Middle chunk and the short last chunk both come back byte-exact.
+        using (var middle = await Get(1))
+        {
+            middle.EnsureSuccessStatusCode();
+            var bytes = await middle.Content.ReadAsByteArrayAsync();
+            Assert.Equal(data.AsSpan(MB, MB).ToArray(), bytes);
+            Assert.Equal(Sha256(bytes), middle.Headers.GetValues("X-Chunk-SHA256").Single());
+        }
+        using (var last = await Get(2))
+            Assert.Equal(data.AsSpan(2 * MB).ToArray(), await last.Content.ReadAsByteArrayAsync());
+
+        using (var stranger = await Get(0, user: "mallory")) Assert.Equal(HttpStatusCode.NotFound, stranger.StatusCode);
+        using (var outOfRange = await Get(3)) Assert.Equal(HttpStatusCode.NotFound, outOfRange.StatusCode);
+        using (var negative = await Get(-1)) Assert.Equal(HttpStatusCode.NotFound, negative.StatusCode);
+    }
+
+    [Fact]
+    public async Task Corrupt_chunk_download_returns_500_not_bad_bytes()
+    {
+        using var dir = new TempDir();
+        await using var api = CreateApi(dir);
+        var http = api.CreateClient();
+        var uploaded = await UploadRawAsync(http, RandomBytes(MB, seed: 29), "one.bin");
+
+        var blob = Directory.EnumerateFiles(dir.Path("blobs"), "*", SearchOption.AllDirectories).First(f => !f.Contains(".tmp"));
+        var bytes = await File.ReadAllBytesAsync(blob);
+        bytes[10] ^= 0xFF;
+        await File.WriteAllBytesAsync(blob, bytes);
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"/api/files/{uploaded.FileId}/chunks/0");
+        request.Headers.Add("X-User-Id", "alice");
+        using var response = await http.SendAsync(request);
+        Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Root_serves_the_web_ui()
     {
         using var dir = new TempDir();

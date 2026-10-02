@@ -54,6 +54,11 @@
   .map i { width: 14px; height: 14px; border-radius: 3px; display: block; }
   .map i.shared { outline: 2px solid var(--ink); outline-offset: 1px; }
   .legend { color: var(--muted); font-size: 12px; }
+  .chunkscroll { max-height: 320px; overflow: auto; margin-top: 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); }
+  .chunkscroll table td, .chunkscroll table th { padding: 4px 8px; }
+  .chunkscroll th { position: sticky; top: 0; background: var(--card); }
+  td.sizebar { width: 28%; min-width: 80px; }
+  td.sizebar .bar { margin: 0; }
   code { font-size: 12px; } .mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; }
   .toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 8px 14px; border-radius: 8px; font-size: 13px; opacity: 0; pointer-events: none; transition: .2s; max-width: 90vw; }
   .toast.show { opacity: 1; }
@@ -153,12 +158,19 @@ async function loadFiles() {
 
 $('#files').addEventListener('click', async e => {
   const btn = e.target.closest('button[data-act]'); if (!btn) return;
-  const row = btn.closest('tr'); const id = row.dataset.id;
   btn.disabled = true;
-  try { btn.dataset.act === 'download' ? await download(id, btn) : await toggleChunks(row, id); }
-  catch (err) { toast('Failed: ' + err.message); }
+  try {
+    if (btn.dataset.act === 'chunk-dl') return await downloadChunk(btn.closest('tr.chunkrow').dataset.file, btn);
+    const row = btn.closest('tr'); const id = row.dataset.id;
+    btn.dataset.act === 'download' ? await download(id, btn) : await toggleChunks(row, id);
+  } catch (err) { toast('Failed: ' + err.message); }
   finally { btn.disabled = false; }
 });
+
+function saveBlob(blob, name) {
+  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: name });
+  a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+}
 
 async function download(id, btn) {
   const f = fileList.find(x => x.fileId === id);
@@ -173,15 +185,26 @@ async function download(id, btn) {
     if (actual !== expected) throw new Error('SHA-256 mismatch. File is corrupt.');
     verified = ' (SHA-256 verified ✓)';
   }
-  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: f.fileName });
-  a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+  saveBlob(blob, f.fileName);
   toast(`Downloaded ${f.fileName}${verified}`);
   btn.textContent = 'Download';
 }
 
 async function manifest(id) { return (await api(`/api/files/${id}/manifest`)).json(); }
 
-// Chunk map: one square per chunk, coloured by hash; outlined if another file also references it.
+async function downloadChunk(fileId, btn) {
+  const f = fileList.find(x => x.fileId === fileId), label = btn.textContent;
+  btn.textContent = '…';
+  try {
+    const blob = await (await api(`/api/files/${fileId}/chunks/${btn.dataset.index}`)).blob();
+    const actual = hex(await crypto.subtle.digest('SHA-256', await blob.arrayBuffer()));
+    if (actual !== btn.dataset.hash) throw new Error(`chunk ${btn.dataset.index} failed its SHA-256 check`);
+    saveBlob(blob, `${f.fileName}.chunk${btn.dataset.index}`);
+    toast(`Chunk ${btn.dataset.index} downloaded: ${fmt(blob.size)}, SHA-256 verified ✓`);
+  } finally { btn.textContent = label; }
+}
+
+// Chunk view: a map (one square per chunk, outlined if another file shares it) plus a size table with per-chunk download.
 async function toggleChunks(row, id) {
   const next = row.nextElementSibling;
   if (next && next.classList.contains('chunkrow')) { next.remove(); return; }
@@ -189,18 +212,33 @@ async function toggleChunks(row, id) {
   const refs = new Map();
   for (const m of manifests) for (const h of new Set(m.chunks.map(c => c.chunkHash))) refs.set(h, (refs.get(h) || 0) + 1);
   const mine = manifests.find(m => m.file.fileId === id);
-  const shown = mine.chunks.slice(0, 1500);
+  const chunks = mine.chunks.slice(0, 1500);
+  const sizes = mine.chunks.map(c => c.byteSize);
+  const max = sizes.reduce((a, b) => Math.max(a, b), 0), min = sizes.reduce((a, b) => Math.min(a, b), Infinity);
+  const avg = sizes.reduce((a, b) => a + b, 0) / sizes.length;
   const shared = mine.chunks.filter(c => refs.get(c.chunkHash) > 1).length;
-  const squares = shown.map(c => {
+  const hue = h => parseInt(h.slice(0, 4), 16) % 360;
+
+  const squares = chunks.map(c => `<i class="${refs.get(c.chunkHash) > 1 ? 'shared' : ''}" style="background:hsl(${hue(c.chunkHash)} 60% 55%)" title="#${c.sequenceIndex} · ${fmt(c.byteSize)}"></i>`).join('');
+  const rows = chunks.map(c => {
     const n = refs.get(c.chunkHash);
-    const hue = parseInt(c.chunkHash.slice(0, 4), 16) % 360;
-    return `<i class="${n > 1 ? 'shared' : ''}" style="background:hsl(${hue} 60% 55%)" title="#${c.sequenceIndex} · ${fmt(c.byteSize)} · ${c.chunkHash.slice(0, 16)}… · used by ${n} of your files"></i>`;
+    return `<tr>
+      <td class="num">${c.sequenceIndex}</td>
+      <td class="num">${fmt(c.byteSize)}<div class="legend">${c.byteSize.toLocaleString()} B</div></td>
+      <td class="sizebar"><div class="bar"><i style="width:${(c.byteSize / max * 100).toFixed(1)}%;background:hsl(${hue(c.chunkHash)} 60% 55%)"></i></div></td>
+      <td class="mono hide-sm">${c.chunkHash.slice(0, 12)}…</td>
+      <td>${n > 1 ? `shared ×${n}` : 'unique'}</td>
+      <td class="num"><button data-act="chunk-dl" data-index="${c.sequenceIndex}" data-hash="${c.chunkHash}">Download</button></td>
+    </tr>`;
   }).join('');
-  const tr = document.createElement('tr'); tr.className = 'chunkrow';
-  tr.innerHTML = `<td colspan="5"><div class="legend"><b>${mine.chunks.length}</b> chunks in order · <b>${shared}</b> shared with your other files (outlined) · ${mine.chunks.length - shared} unique to this file</div>
-    <div class="map">${squares}</div>${mine.chunks.length > shown.length ? `<div class="legend">Showing first ${shown.length}.</div>` : ''}</td>`;
+
+  const tr = document.createElement('tr'); tr.className = 'chunkrow'; tr.dataset.file = id;
+  tr.innerHTML = `<td colspan="5">
+    <div class="legend"><b>${mine.chunks.length}</b> chunks · size min <b>${fmt(min)}</b> · avg <b>${fmt(avg)}</b> · max <b>${fmt(max)}</b> · <b>${shared}</b> shared with your other files (outlined) · ${mine.chunks.length - shared} unique</div>
+    <div class="map">${squares}</div>
+    <div class="chunkscroll"><table><thead><tr><th class="num">#</th><th class="num">Size</th><th>Relative size</th><th class="hide-sm">SHA-256</th><th>Used by</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+    ${mine.chunks.length > chunks.length ? `<div class="legend">Showing first ${chunks.length} of ${mine.chunks.length}.</div>` : ''}</td>`;
   row.after(tr);
-  row.querySelector('[data-chunks]').textContent = mine.chunks.length;
 }
 
 // ---------- upload ----------

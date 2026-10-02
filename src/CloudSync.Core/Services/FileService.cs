@@ -98,6 +98,30 @@ public sealed class FileService(
         }
     }
 
+    /// <summary>
+    /// Reads one chunk and verifies it before returning, so the caller can still send a clean error status.
+    /// The returned chunk owns a pooled buffer: dispose it.
+    /// </summary>
+    public async Task<RawChunk> ReadChunkAsync(ManifestEntry entry, CancellationToken ct = default)
+    {
+        var size = checked((int)entry.ByteSize);
+        var buffer = ArrayPool<byte>.Shared.Rent(size);
+        try
+        {
+            var read = await blobs.ReadAsync(entry.ChunkHash, buffer.AsMemory(0, size), ct);
+            if (read != size)
+                throw new ChunkIntegrityException(entry.ChunkHash, $"expected {size} bytes, read {read}");
+            if (ContentHash.Compute(buffer.AsSpan(0, size)) != entry.ChunkHash)
+                throw new ChunkIntegrityException(entry.ChunkHash, "hash mismatch");
+            return new RawChunk(entry.SequenceIndex, 0, buffer, size);
+        }
+        catch
+        {
+            ArrayPool<byte>.Shared.Return(buffer);
+            throw;
+        }
+    }
+
     // ---- Delta sync: client chunks locally, uploads only what the server lacks ----
 
     public async Task<IReadOnlyList<string>> FindMissingAsync(IReadOnlyCollection<string> hashes, CancellationToken ct = default)

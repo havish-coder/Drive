@@ -45,6 +45,7 @@ The page is a single static file (`src/CloudSync.Api/wwwroot/index.html`); no bu
 | POST | `/api/files?fileName=` | Streaming upload (raw body or multipart) |
 | GET | `/api/files/{id}` | Reconstructed download (every chunk re-verified) |
 | GET | `/api/files/{id}/manifest` | Ordered chunk list |
+| GET | `/api/files/{id}/chunks/{n}` | One verified chunk (owner only) |
 | GET | `/api/files` | Caller's files |
 | POST | `/api/sync/negotiate` | `{hashes}` → `{missing}` |
 | PUT | `/api/chunks/{hash}` | Upload one chunk (server re-hashes) |
