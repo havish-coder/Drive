@@ -5,7 +5,22 @@ Status: `open` · `fixed` · `wontfix`
 
 | # | Status | Summary |
 |---|---|---|
+| 2 | fixed | No visual overview of the whole project: added `docs/VISUALIZATION.md` (14 Mermaid diagrams) |
 | 1 | fixed | Chunk sizes not visible in the UI; no way to download an individual chunk |
+
+---
+
+## #2 No visual overview of the project
+
+**Request:** a full visualization of the project in Mermaid.
+
+**Change:** `docs/VISUALIZATION.md` with 14 diagrams: architecture, project dependencies, classes, DB schema, the
+upload / download / delta-sync / gRPC sequences, the pipeline and backpressure, the dedup decision, crash
+consistency, fixed-vs-CDC chunking, on-disk layout and a concept map. GitHub renders them inline.
+
+**Verification:** every block was extracted and rendered with Mermaid 11 in headless Chromium (14/14 render, none
+with a syntax error). Diagrams were derived from the code, not from memory of the design: type names, endpoints,
+queue capacities and error codes match the source.
 
 ---
 
