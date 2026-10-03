@@ -12,7 +12,8 @@ var app = builder.Build();
 
 await app.Services.GetRequiredService<IMetadataRepository>().InitializeAsync();
 app.UseDefaultFiles();
-app.UseStaticFiles();
+// Revalidate every time, or browsers may keep serving an old UI after an update (heuristic caching).
+app.UseStaticFiles(new StaticFileOptions { OnPrepareResponse = c => c.Context.Response.Headers.CacheControl = "no-cache" });
 
 var metrics = app.Services.GetRequiredService<RouteMetrics>();
 app.Use(async (ctx, next) =>

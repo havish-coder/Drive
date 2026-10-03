@@ -5,6 +5,7 @@ Status: `open` · `fixed` · `wontfix`
 
 | # | Status | Summary |
 |---|---|---|
+| 9 | fixed | After updating, browsers could keep showing the old UI (no login screen): the page had no `Cache-Control` |
 | 8 | open | Global dedup leaks chunk existence via negotiate; no proof-of-possession on commit (gap S3, S4) |
 | 7 | open | Deleting files/folders never frees chunk storage: no garbage collector |
 | 6 | open | Measured: registering chunk rows in SQLite costs ~107 ms per insert under 4 concurrent workers (gap L1) |
@@ -15,6 +16,19 @@ Status: `open` · `fixed` · `wontfix`
 | 1 | fixed | Chunk sizes not visible in the UI; no way to download an individual chunk |
 
 Full analysis of what remains versus a real product: [`docs/GAP_ANALYSIS.md`](GAP_ANALYSIS.md).
+
+---
+
+## #9 Old UI kept showing after an update
+
+**Reported:** after pulling the login/folders update there was no "Create account" option.
+
+**Cause:** the new page does have it (Sign in + Create account), but `index.html` was served with only
+`Last-Modified`/`ETag` and no `Cache-Control`. Browsers then apply heuristic freshness and may reuse the cached
+old page (which had no login) without asking the server.
+
+**Fix:** static files are served with `Cache-Control: no-cache`, so the browser revalidates on every load (a cheap
+304 when unchanged). Test: `Root_serves_the_web_ui` asserts the header.
 
 ---
 

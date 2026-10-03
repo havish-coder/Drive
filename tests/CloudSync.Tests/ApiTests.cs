@@ -149,6 +149,7 @@ public class ApiTests
         using var response = await http.GetAsync("/");
         response.EnsureSuccessStatusCode();
         Assert.Equal("text/html", response.Content.Headers.ContentType?.MediaType);
+        Assert.True(response.Headers.CacheControl?.NoCache, "UI must be revalidated so updates show up");
         Assert.Contains("CloudSync", await response.Content.ReadAsStringAsync());
     }
 
