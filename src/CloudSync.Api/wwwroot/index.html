@@ -3,331 +3,481 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CloudSync</title>
+<title>CloudSync Drive</title>
 <style>
   :root {
-    --bg: #f6f7f9; --card: #fff; --ink: #1c2128; --muted: #667085; --line: #e3e6eb;
-    --accent: #2f6fed; --accent-ink: #fff; --ok: #12805c; --bad: #c0362c; --warn: #b7791f;
+    --bg: #f8fafd; --card: #fff; --ink: #1f1f1f; --muted: #5f6368; --line: #e3e6ea; --hover: #f1f4f9;
+    --accent: #0b57d0; --accent-soft: #d3e3fd; --accent-ink: #fff; --ok: #137333; --bad: #b3261e; --folder: #f4b400;
   }
   @media (prefers-color-scheme: dark) {
-    :root { --bg: #0f1216; --card: #171b21; --ink: #e8ebf0; --muted: #98a2b3; --line: #262c35;
-            --accent: #5b8cff; --accent-ink: #0b1020; --ok: #3ecf9e; --bad: #ff7b70; --warn: #e8b04a; }
+    :root { --bg: #131417; --card: #1b1c20; --ink: #e3e3e3; --muted: #9aa0a6; --line: #2d2f33; --hover: #24262b;
+            --accent: #a8c7fa; --accent-soft: #29374f; --accent-ink: #062e6f; --ok: #6dd58c; --bad: #f2b8b5; }
   }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
-  main { max-width: 1040px; margin: 0 auto; padding: 24px 16px 64px; }
-  header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 20px; }
-  h1 { font-size: 22px; margin: 0; letter-spacing: -.01em; }
-  h1 small { color: var(--muted); font-weight: 400; font-size: 13px; margin-left: 8px; }
-  h2 { font-size: 15px; margin: 0 0 12px; }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
-  .user { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
-  input[type=text] { font: inherit; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--ink); width: 150px; }
-  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
-  .stat .v { font-size: 22px; font-weight: 650; letter-spacing: -.02em; }
-  .stat .l { color: var(--muted); font-size: 12px; }
-  .stat.hero .v { color: var(--ok); }
-  .drop { border: 2px dashed var(--line); border-radius: 12px; padding: 28px 16px; text-align: center; color: var(--muted); cursor: pointer; transition: .15s; }
-  .drop:hover, .drop.over { border-color: var(--accent); color: var(--ink); background: color-mix(in srgb, var(--accent) 6%, transparent); }
-  .drop:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  .modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 8px; margin-bottom: 12px; }
-  .mode { display: block; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; cursor: pointer; }
-  .mode:has(input:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 7%, transparent); }
-  .mode b { display: block; font-size: 14px; } .mode span { color: var(--muted); font-size: 12.5px; }
-  .mode input { margin-right: 6px; }
-  .job { margin-top: 12px; font-size: 13px; }
-  .bar { height: 8px; background: var(--line); border-radius: 99px; overflow: hidden; margin: 6px 0; }
-  .bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .1s; }
-  .result { color: var(--ok); } .error { color: var(--bad); }
-  table { width: 100%; border-collapse: collapse; font-size: 14px; }
-  th { text-align: left; color: var(--muted); font-weight: 500; font-size: 12px; padding: 6px 8px; border-bottom: 1px solid var(--line); }
-  td { padding: 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
-  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
-  td.name { word-break: break-all; }
-  .empty { color: var(--muted); padding: 16px 8px; text-align: center; }
-  button { font: inherit; font-size: 13px; padding: 5px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--ink); cursor: pointer; }
-  button:hover { border-color: var(--accent); }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  [hidden] { display: none !important; }
+  button, input, select { font: inherit; color: inherit; }
+  button { cursor: pointer; border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 6px 14px; }
+  button:hover { background: var(--hover); }
   button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
-  button:disabled { opacity: .5; cursor: default; }
-  .chunkrow td { background: color-mix(in srgb, var(--muted) 6%, transparent); }
-  .map { display: flex; flex-wrap: wrap; gap: 3px; margin: 6px 0; }
-  .map i { width: 14px; height: 14px; border-radius: 3px; display: block; }
-  .map i.shared { outline: 2px solid var(--ink); outline-offset: 1px; }
-  .legend { color: var(--muted); font-size: 12px; }
-  .chunkscroll { max-height: 320px; overflow: auto; margin-top: 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); }
-  .chunkscroll table td, .chunkscroll table th { padding: 4px 8px; }
-  .chunkscroll th { position: sticky; top: 0; background: var(--card); }
-  td.sizebar { width: 28%; min-width: 80px; }
-  td.sizebar .bar { margin: 0; }
-  code { font-size: 12px; } .mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; }
-  .toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 8px 14px; border-radius: 8px; font-size: 13px; opacity: 0; pointer-events: none; transition: .2s; max-width: 90vw; }
-  .toast.show { opacity: 1; }
-  @media (max-width: 600px) { .hide-sm { display: none; } }
+  button.icon { border: 0; background: none; border-radius: 50%; width: 32px; height: 32px; padding: 0; font-size: 18px; color: var(--muted); }
+  button.icon:hover { background: var(--hover); }
+  input[type=text], input[type=password], input[type=search], select {
+    border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--card); width: 100%; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .muted { color: var(--muted); } .bad { color: var(--bad); } .ok { color: var(--ok); }
+  .mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; }
+
+  /* login */
+  #login { min-height: 100vh; display: grid; place-items: center; padding: 16px; }
+  #login form { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 28px; width: min(360px, 100%); display: grid; gap: 12px; }
+  #login h1 { margin: 0; font-size: 22px; }
+
+  /* shell */
+  header { display: flex; align-items: center; gap: 12px; padding: 10px 16px; }
+  .logo { font-weight: 650; font-size: 18px; min-width: 200px; display: flex; align-items: center; gap: 8px; }
+  header input[type=search] { max-width: 640px; border-radius: 999px; background: var(--hover); border: 0; padding: 10px 16px; }
+  .me { margin-left: auto; display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+  .layout { display: grid; grid-template-columns: 240px 1fr; gap: 8px; padding: 0 16px 16px; }
+  aside { display: flex; flex-direction: column; gap: 4px; }
+  aside .new { align-self: flex-start; padding: 12px 20px; border-radius: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.15); margin-bottom: 8px; }
+  aside a { color: inherit; text-decoration: none; padding: 7px 14px; border-radius: 999px; }
+  aside a:hover { background: var(--hover); }
+  aside a.on { background: var(--accent-soft); font-weight: 600; }
+  aside .box { margin-top: 12px; padding: 0 14px; font-size: 12px; }
+  main { background: var(--card); border-radius: 16px; padding: 12px 20px; min-height: calc(100vh - 80px); position: relative; }
+  main.drop { outline: 2px dashed var(--accent); outline-offset: -6px; }
+  .crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; font-size: 18px; margin: 4px 0 12px; }
+  .crumbs a { color: inherit; text-decoration: none; padding: 2px 8px; border-radius: 8px; }
+  .crumbs a:hover { background: var(--hover); }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; color: var(--muted); font-weight: 500; font-size: 12px; padding: 8px; border-bottom: 1px solid var(--line); }
+  td { padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  tr.item { cursor: pointer; } tr.item:hover td { background: var(--hover); }
+  .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .name { display: flex; align-items: center; gap: 10px; word-break: break-word; }
+  .badge { flex: none; width: 28px; height: 22px; border-radius: 4px; color: #fff; font-size: 9px; font-weight: 700; display: grid; place-items: center; }
+  .empty { text-align: center; color: var(--muted); padding: 56px 16px; }
+  @media (max-width: 760px) {
+    .layout { grid-template-columns: 1fr; } .logo { min-width: 0; } .hide-sm { display: none; }
+    aside { flex-direction: row; flex-wrap: wrap; align-items: center; } aside .new { margin: 0; } aside .box { display: none; }
+  }
+
+  /* menus, dialogs, uploads */
+  #menu { position: fixed; inset: auto; margin: 0; padding: 6px 0; border: 1px solid var(--line); border-radius: 8px; background: var(--card);
+          color: var(--ink); box-shadow: 0 4px 16px rgba(0,0,0,.18); min-width: 180px; }
+  #menu button { display: block; width: 100%; text-align: left; border: 0; border-radius: 0; background: none; padding: 8px 16px; }
+  #menu button:hover { background: var(--hover); }
+  dialog { border: 0; border-radius: 16px; padding: 24px; background: var(--card); color: var(--ink); width: min(720px, calc(100vw - 32px)); max-height: 90vh; }
+  dialog::backdrop { background: rgba(0,0,0,.45); }
+  dialog h2 { margin: 0 0 14px; font-size: 18px; padding-right: 32px; word-break: break-word; }
+  dialog .x { position: absolute; top: 14px; right: 14px; }
+  dialog.preview { width: min(1100px, calc(100vw - 32px)); }
+  dialog.preview img { max-width: 100%; max-height: 75vh; display: block; margin: auto; }
+  dialog.preview iframe { width: 100%; height: 75vh; border: 0; }
+  .row { display: flex; gap: 8px; align-items: center; margin: 8px 0; } .row > input { flex: 1; }
+  .scroll { max-height: 50vh; overflow: auto; }
+  .bar { height: 8px; background: var(--line); border-radius: 99px; overflow: hidden; } .bar i { display: block; height: 100%; background: var(--accent); }
+  #uploads { position: fixed; right: 16px; bottom: 16px; width: min(380px, calc(100vw - 32px)); background: var(--card); border: 1px solid var(--line);
+             border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,.18); max-height: 50vh; overflow: auto; }
+  #uploads h3 { margin: 0; padding: 10px 14px; font-size: 14px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--line); }
+  .job { padding: 8px 14px; font-size: 12.5px; border-bottom: 1px solid var(--line); } .job b { word-break: break-all; }
+  #toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 10px 16px;
+           border-radius: 8px; opacity: 0; pointer-events: none; transition: .2s; max-width: 90vw; }
+  #toast.show { opacity: 1; }
 </style>
 </head>
 <body>
-<main>
+<section id="login" hidden>
+  <form>
+    <h1>CloudSync Drive</h1>
+    <div class="muted" id="loginHint">Sign in to continue</div>
+    <input type="text" name="user" placeholder="Username" autocomplete="username" required>
+    <input type="password" name="pass" placeholder="Password (8+ characters)" autocomplete="current-password" required>
+    <div class="bad" id="loginError"></div>
+    <div class="row"><button class="primary" name="mode" value="login">Sign in</button><button name="mode" value="register">Create account</button></div>
+  </form>
+</section>
+
+<div id="app" hidden>
   <header>
-    <h1>CloudSync <small>chunked storage &amp; delta sync</small></h1>
-    <label class="user">Signed in as <input id="user" type="text" value="demo-user" aria-label="User id"></label>
+    <div class="logo"><svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><path fill="var(--accent)" d="M6.5 19a4.5 4.5 0 0 1-.6-8.96A6 6 0 0 1 17.6 8.6 4.5 4.5 0 0 1 17.5 19z"/></svg>CloudSync</div>
+    <input type="search" id="search" placeholder="Search in Drive" aria-label="Search">
+    <div class="me" id="publicBadge" hidden><span class="muted">Shared link</span></div>
+    <div class="me" id="meBox"><span id="meName"></span><button id="logout">Sign out</button></div>
   </header>
+  <div class="layout">
+    <aside id="side">
+      <button class="new" id="newBtn">＋ New</button>
+      <a href="#/folder/root" data-nav="folder">My Drive</a>
+      <a href="#/shared" data-nav="shared">Shared with me</a>
+      <a href="#/perf" data-nav="perf">Performance</a>
+      <div class="box">
+        <label class="muted" for="mode">Upload mode</label>
+        <select id="mode"><option value="stream">Stream to server</option><option value="delta">Delta sync (browser chunks)</option></select>
+        <p class="muted" id="storage"></p>
+      </div>
+    </aside>
+    <main id="main" aria-live="polite"></main>
+  </div>
+</div>
 
-  <section class="card" aria-label="System stats">
-    <h2>Whole system <span class="legend">(all users)</span></h2>
-    <div class="stats" id="stats"></div>
-  </section>
-
-  <section class="card">
-    <h2>Upload</h2>
-    <div class="modes">
-      <label class="mode"><input type="radio" name="mode" value="stream" checked><b>Stream to server</b>
-        <span>Whole file is sent; the server chunks, hashes and dedups it.</span></label>
-      <label class="mode"><input type="radio" name="mode" value="delta"><b>Delta sync (browser chunks)</b>
-        <span>Browser hashes 4 MB blocks, asks which are missing, sends only those.</span></label>
-    </div>
-    <div class="drop" id="drop" tabindex="0" role="button" aria-label="Choose files to upload">
-      Drop files here or <u>browse</u>
-      <input id="picker" type="file" multiple hidden>
-    </div>
-    <div id="jobs"></div>
-  </section>
-
-  <section class="card">
-    <h2>Your files</h2>
-    <table>
-      <thead><tr><th>Name</th><th class="num">Size</th><th class="num hide-sm">Chunks</th><th class="hide-sm">Uploaded</th><th></th></tr></thead>
-      <tbody id="files"></tbody>
-    </table>
-  </section>
-</main>
-<div class="toast" id="toast" role="status"></div>
+<input type="file" id="pickFiles" multiple hidden>
+<input type="file" id="pickFolder" webkitdirectory multiple hidden>
+<div id="menu" popover></div>
+<dialog id="dlg"></dialog>
+<div id="uploads" hidden><h3><span>Uploads</span><button class="icon" id="closeUploads" aria-label="Close">×</button></h3><div id="jobs"></div></div>
+<div id="toast" role="status"></div>
 
 <script>
 const CHUNK = 4 * 1024 * 1024;
 const $ = s => document.querySelector(s);
-const user = () => $('#user').value.trim() || 'anonymous';
-const auth = () => ({ 'X-User-Id': user() });
-const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const hex = buf => [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
-function fmt(n) {
-  if (n < 1024) return n + ' B';
-  const u = ['KB', 'MB', 'GB', 'TB']; let i = -1;
-  do { n /= 1024; i++; } while (n >= 1024 && i < u.length - 1);
-  return n.toFixed(n >= 100 ? 0 : 1) + ' ' + u[i];
-}
-let toastTimer;
-function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 3500); }
+const fmt = n => { if (n == null) return '—'; if (n < 1024) return n + ' B'; const u = ['KB', 'MB', 'GB', 'TB']; let i = -1; do { n /= 1024; i++; } while (n >= 1024 && i < 3); return n.toFixed(n >= 100 ? 0 : 1) + ' ' + u[i]; };
+const when = d => d ? new Date(d).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : '';
+const PREVIEW = /\.(png|jpe?g|gif|webp|bmp|avif|ico|pdf)$/i;
+const KINDS = [[/\.(png|jpe?g|gif|webp|bmp|svg|avif|ico|heic)$/i, '#188038', 'IMG'], [/\.pdf$/i, '#d93025', 'PDF'], [/\.(mp3|wav|flac|ogg|m4a|aac)$/i, '#9334e6', 'AUD'],
+  [/\.(mp4|mkv|mov|webm|avi)$/i, '#e8710a', 'VID'], [/\.(zip|rar|7z|tar|gz|iso)$/i, '#795548', 'ZIP'], [/\.(docx?|txt|md|rtf|odt)$/i, '#1a73e8', 'DOC'],
+  [/\.(xlsx?|csv|ods)$/i, '#188038', 'XLS'], [/\.(pptx?|odp)$/i, '#f9ab00', 'PPT'], [/\.(js|ts|cs|py|java|c|cpp|go|rs|json|html|css|xml|sh)$/i, '#5f6368', 'CODE']];
+const FOLDER_ICON = '<svg class="badge" viewBox="0 0 24 24" style="width:28px;height:24px" aria-hidden="true"><path fill="var(--folder)" d="M10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-8z"/></svg>';
+const icon = (type, name) => type === 'folder' ? FOLDER_ICON
+  : (([, c, t] = KINDS.find(([re]) => re.test(name)) || [, '#80868b', (name.split('.').pop() || 'FILE').slice(0, 4).toUpperCase()]) => `<span class="badge" style="background:${c}">${esc(t)}</span>`)();
+let me = null, view = {}, lastUpload = null;
+
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), 3500); }
 
 async function api(path, opts = {}) {
-  const r = await fetch(path, { ...opts, headers: { ...auth(), ...(opts.headers || {}) } });
-  if (!r.ok) throw new Error(`${r.status} ${(await r.text()).slice(0, 200)}`);
-  return r;
+  const r = await fetch(path, { ...opts, headers: typeof opts.body === 'string' ? { 'Content-Type': 'application/json' } : {} });
+  if (r.status === 401 && !path.startsWith('/api/auth/') && !path.startsWith('/api/public/')) { me = null; showLogin(); throw new Error('Please sign in.'); }
+  if (!r.ok) { let m = r.status === 403 ? "You don't have permission to do that." : r.status === 404 ? 'Not found.' : `Error ${r.status}`;
+    try { m = (await r.json()).error || m; } catch {} throw new Error(m); }
+  return (r.headers.get('content-type') || '').includes('json') ? r.json() : null;
 }
+const send = (path, body, method = 'POST') => api(path, { method, body: JSON.stringify(body) });
 
-// ---------- stats ----------
-async function loadStats() {
-  const s = await (await api('/api/stats')).json();
-  const cells = [
-    ['Files', s.fileCount], ['Unique chunks', s.chunkCount],
-    ['Logical size', fmt(s.logicalBytes)], ['Physical size', fmt(s.physicalBytes)],
-    ['Dedup ratio', s.physicalBytes ? s.dedupRatio.toFixed(2) + '×' : '–', 'hero'],
-    ['Space saved', s.logicalBytes ? fmt(Math.max(0, s.logicalBytes - s.physicalBytes)) : '–', 'hero'],
-  ];
-  $('#stats').innerHTML = cells.map(([l, v, c]) => `<div class="stat ${c || ''}"><div class="v">${esc(v)}</div><div class="l">${l}</div></div>`).join('');
-}
-
-// ---------- files ----------
-let fileList = [];
-async function loadFiles() {
-  fileList = await (await api('/api/files')).json();
-  const body = $('#files');
-  if (!fileList.length) { body.innerHTML = '<tr><td colspan="5" class="empty">No files yet for this user. Upload one above.</td></tr>'; return; }
-  body.innerHTML = fileList.map(f => `
-    <tr data-id="${f.fileId}">
-      <td class="name">${esc(f.fileName)}<div class="legend mono">${esc(f.chunker)}</div></td>
-      <td class="num">${fmt(f.totalSize)}</td>
-      <td class="num hide-sm" data-chunks>–</td>
-      <td class="hide-sm">${new Date(f.createdAt).toLocaleString()}</td>
-      <td class="num"><button data-act="chunks">Chunks</button> <button class="primary" data-act="download">Download</button></td>
-    </tr>`).join('');
-  for (const f of fileList) manifest(f.fileId).then(m => {
-    const cell = body.querySelector(`tr[data-id="${f.fileId}"] [data-chunks]`);
-    if (cell) cell.textContent = m.chunks.length;
-  }).catch(() => {});
-}
-
-$('#files').addEventListener('click', async e => {
-  const btn = e.target.closest('button[data-act]'); if (!btn) return;
-  btn.disabled = true;
+// ---------- auth ----------
+function showLogin() { $('#app').hidden = true; $('#login').hidden = false; $('#login [name=user]').focus(); }
+$('#login form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const f = e.target, mode = e.submitter?.value || 'login';
+  $('#loginError').textContent = '';
   try {
-    if (btn.dataset.act === 'chunk-dl') return await downloadChunk(btn.closest('tr.chunkrow').dataset.file, btn);
-    const row = btn.closest('tr'); const id = row.dataset.id;
-    btn.dataset.act === 'download' ? await download(id, btn) : await toggleChunks(row, id);
-  } catch (err) { toast('Failed: ' + err.message); }
-  finally { btn.disabled = false; }
+    me = (await send(`/api/auth/${mode}`, { userName: f.user.value, password: f.pass.value })).userName;
+    f.pass.value = ''; route();
+  } catch (err) { $('#loginError').textContent = mode === 'login' && err.message.startsWith('Error 401') ? 'Wrong username or password.' : err.message; }
+});
+$('#logout').onclick = async () => { await api('/api/auth/logout', { method: 'POST' }); me = null; location.hash = ''; showLogin(); };
+
+// ---------- routing ----------
+async function route() {
+  const [, kind, a, b] = (location.hash.slice(1) || '/folder/root').split('/');
+  $('#menu').hidePopover?.(); $('#dlg').close();
+  if (kind === 's') return showPublic(a, b);
+  if (!me) { try { me = (await api('/api/auth/me')).userName; } catch { return showLogin(); } }
+  $('#login').hidden = true; $('#app').hidden = false; $('#side').hidden = false; $('#meBox').hidden = false; $('#publicBadge').hidden = true;
+  $('#meName').textContent = me;
+  document.querySelectorAll('[data-nav]').forEach(n => n.classList.toggle('on', n.dataset.nav === kind));
+  try {
+    if (kind === 'shared') await showItems('Shared with me', await api('/api/shared-with-me'));
+    else if (kind === 'search') await showItems(`Results for “${decodeURIComponent(a || '')}”`, await api(`/api/search?q=${a || ''}`));
+    else if (kind === 'perf') await showPerf();
+    else await showFolder(a && a !== 'root' ? a : null);
+  } catch (err) { $('#main').innerHTML = `<p class="bad">${esc(err.message)}</p>`; }
+  storage();
+}
+window.addEventListener('hashchange', route);
+$('#search').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.value.trim()) location.hash = `/search/${encodeURIComponent(e.target.value.trim())}`; });
+async function storage() { try { const s = await api('/api/stats'); $('#storage').textContent = `Server stores ${fmt(s.logicalBytes)} of files in ${fmt(s.physicalBytes)} of chunks (${s.physicalBytes ? s.dedupRatio.toFixed(2) : '1.00'}× dedup).`; } catch {} }
+
+// ---------- listings ----------
+const fromListing = l => [
+  ...l.folders.map(f => ({ type: 'folder', id: f.id, name: f.name, owner: f.ownerId, date: f.createdAt })),
+  ...l.files.map(f => ({ type: 'file', id: f.fileId, name: f.fileName, owner: f.userId, date: f.createdAt, size: f.totalSize }))];
+
+async function showFolder(id) {
+  const l = await api(`/api/folders/${id || 'root'}/children`);
+  const shared = l.role !== 'Owner';
+  view = { kind: 'folder', folderId: id, role: l.role, items: fromListing(l) };
+  const trail = l.path.map(p => [`#/folder/${p.id}`, p.name]);
+  render([[shared ? '#/shared' : '#/folder/root', shared ? 'Shared with me' : 'My Drive'], ...trail]);
+}
+
+async function showItems(title, items) {
+  view = { kind: 'items', role: null, items: items.map(i => ({ type: i.type, id: i.id, name: i.name, owner: i.ownerId, size: i.size, role: i.role })) };
+  render([[null, title]]);
+}
+
+function render(trail, base = null) {
+  const items = view.items;
+  $('#main').innerHTML = `<nav class="crumbs" aria-label="Breadcrumbs">${trail.map(([href, name], i) =>
+      (i ? '<span class="muted">›</span>' : '') + (href && i < trail.length - 1 ? `<a href="${href}">${esc(name)}</a>` : `<span>${esc(name)}</span>`)).join('')}</nav>
+    ${items.length ? `<table><thead><tr><th>Name</th><th class="hide-sm">Owner</th><th class="hide-sm">Created</th><th class="num">Size</th><th></th></tr></thead><tbody>
+      ${items.map((it, i) => `<tr class="item" data-i="${i}">
+        <td><div class="name">${icon(it.type, it.name)}<span>${esc(it.name)}</span></div></td>
+        <td class="hide-sm muted">${it.owner === me ? 'me' : esc(it.owner)}</td>
+        <td class="hide-sm muted">${when(it.date)}</td>
+        <td class="num muted">${it.type === 'folder' ? '—' : fmt(it.size)}</td>
+        <td class="num"><button class="icon" data-menu="${i}" aria-label="Actions for ${esc(it.name)}">⋮</button></td></tr>`).join('')}
+      </tbody></table>`
+    : `<div class="empty">${view.kind === 'folder' && canWrite() ? 'Drop files or folders here, or use ＋ New' : 'Nothing here'}</div>`}`;
+  view.base = base;
+}
+
+$('#main').addEventListener('click', e => {
+  const m = e.target.closest('[data-menu]');
+  if (m) return openMenu(m, view.items[m.dataset.menu]);
+  const row = e.target.closest('tr.item');
+  if (row) open(view.items[row.dataset.i]);
 });
 
-function saveBlob(blob, name) {
-  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: name });
-  a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+const canWrite = () => view.kind === 'folder' && view.role !== 'Viewer';
+const roleOf = it => it.owner === me ? 'Owner' : (view.role || (it.role === 'editor' ? 'Editor' : 'Viewer'));
+const fileUrl = (it, inline) => (view.base ? `${view.base}/files/${it.id}` : `/api/files/${it.id}`) + (inline ? '?inline=true' : '');
+
+function open(it) {
+  if (it.type === 'folder') location.hash = view.base ? `/s/${view.token}/${it.id}` : `/folder/${it.id}`;
+  else if (PREVIEW.test(it.name)) preview(it);
+  else download(it);
+}
+function download(it) { Object.assign(document.createElement('a'), { href: fileUrl(it), download: it.name }).click(); }
+
+function openMenu(btn, it) {
+  const role = roleOf(it), edit = role !== 'Viewer', own = role === 'Owner';
+  const entries = [
+    it.type === 'folder' ? ['Open', () => open(it)] : PREVIEW.test(it.name) && ['Preview', () => preview(it)],
+    it.type === 'file' && ['Download', () => download(it)],
+    it.type === 'file' && !view.base && ['Chunks', () => chunks(it)],
+    !view.base && edit && ['Rename', () => rename(it)],
+    !view.base && own && ['Move', () => move(it)],
+    !view.base && own && ['Share', () => share(it)],
+    !view.base && edit && ['Delete', () => remove(it)],
+  ].filter(Boolean);
+  const menu = $('#menu');
+  menu.innerHTML = entries.map(([label], i) => `<button data-i="${i}">${label}</button>`).join('');
+  menu.onclick = e => { const i = e.target.dataset.i; if (i) { menu.hidePopover(); entries[i][1](); } };
+  const r = btn.getBoundingClientRect();
+  menu.style.top = `${Math.min(r.bottom, innerHeight - 40 * entries.length - 16)}px`;
+  menu.style.left = `${Math.max(8, r.right - 190)}px`;
+  menu.showPopover();
 }
 
-async function download(id, btn) {
-  const f = fileList.find(x => x.fileId === id);
-  btn.textContent = 'Downloading…';
-  const r = await api(`/api/files/${id}`);
-  const blob = await r.blob();
-  if (blob.size !== f.totalSize) throw new Error(`got ${blob.size} of ${f.totalSize} bytes (server aborted: integrity failure?)`);
-  const expected = r.headers.get('X-Content-SHA256');
-  let verified = '';
-  if (expected && blob.size < 512 * 1024 * 1024) {
-    const actual = hex(await crypto.subtle.digest('SHA-256', await blob.arrayBuffer()));
-    if (actual !== expected) throw new Error('SHA-256 mismatch. File is corrupt.');
-    verified = ' (SHA-256 verified ✓)';
-  }
-  saveBlob(blob, f.fileName);
-  toast(`Downloaded ${f.fileName}${verified}`);
-  btn.textContent = 'Download';
+// ---------- actions ----------
+const itemPath = it => `/api/${it.type === 'folder' ? 'folders' : 'files'}/${it.id}`;
+async function act(fn, done) { try { await fn(); if (done) toast(done); route(); } catch (e) { toast(e.message); } }
+function rename(it) { const name = prompt('New name', it.name); if (name && name !== it.name) act(() => send(itemPath(it), { name }, 'PATCH'), 'Renamed'); }
+function remove(it) { if (confirm(`Delete “${it.name}”${it.type === 'folder' ? ' and everything inside it' : ''}?`)) act(() => api(itemPath(it), { method: 'DELETE' }), 'Deleted'); }
+function newFolder() { const name = prompt('New folder name'); if (name) act(() => send('/api/folders', { name, parentId: target() }), 'Folder created'); }
+
+function dialog(html, cls = '') {
+  const d = $('#dlg'); d.className = cls;
+  d.innerHTML = `<button class="icon x" aria-label="Close">×</button>${html}`;
+  d.querySelector('.x').onclick = () => d.close();
+  d.showModal(); return d;
 }
 
-async function manifest(id) { return (await api(`/api/files/${id}/manifest`)).json(); }
+function preview(it) {
+  const url = fileUrl(it, true);
+  dialog(`<h2>${esc(it.name)}</h2>${/\.pdf$/i.test(it.name) ? `<iframe src="${url}" title="${esc(it.name)}"></iframe>` : `<img src="${url}" alt="${esc(it.name)}">`}
+    <div class="row" style="justify-content:flex-end"><a href="${fileUrl(it)}" download="${esc(it.name)}"><button>Download</button></a></div>`, 'preview');
+}
 
-async function downloadChunk(fileId, btn) {
-  const f = fileList.find(x => x.fileId === fileId), label = btn.textContent;
-  btn.textContent = '…';
+async function move(it) {
+  const d = dialog(`<h2>Move “${esc(it.name)}”</h2><div id="mv"></div>`);
+  const show = async id => {
+    const l = await api(`/api/folders/${id || 'root'}/children`);
+    const folders = l.folders.filter(f => f.id !== it.id);
+    d.querySelector('#mv').innerHTML = `<nav class="crumbs"><a href="#" data-to="">My Drive</a>${l.path.map(p => `<span class="muted">›</span><a href="#" data-to="${p.id}">${esc(p.name)}</a>`).join('')}</nav>
+      <div class="scroll">${folders.map(f => `<div class="row" style="cursor:pointer" data-to="${f.id}">${FOLDER_ICON}${esc(f.name)}</div>`).join('') || '<p class="muted">No subfolders</p>'}</div>
+      <div class="row" style="justify-content:flex-end"><button class="primary" id="here">Move here</button></div>`;
+    d.querySelector('#mv').onclick = e => { const t = e.target.closest('[data-to]'); if (t) { e.preventDefault(); show(t.dataset.to || null); } };
+    d.querySelector('#here').onclick = () => { d.close(); act(() => send(itemPath(it), { moveTo: id || 'root' }, 'PATCH'), 'Moved'); };
+  };
+  show(null);
+}
+
+async function share(it) {
+  const d = dialog(`<h2>Share “${esc(it.name)}”</h2>
+    <form class="row" id="addShare"><input type="text" name="user" placeholder="Username" required aria-label="Username">
+      <select name="role" style="width:auto" aria-label="Role"><option value="viewer">Viewer</option><option value="editor">Editor</option></select>
+      <button class="primary">Share</button></form>
+    <div id="shares"></div>
+    <h2 style="margin-top:20px">Public link</h2><div id="link"></div>`);
+  const load = async () => {
+    const shares = await api(`/api/shares/${it.type}/${it.id}`);
+    const people = shares.filter(s => s.grantee), link = shares.find(s => s.linkToken);
+    d.querySelector('#shares').innerHTML = people.map(s => `<div class="row"><span style="flex:1">${esc(s.grantee)} <span class="muted">· ${s.role}</span></span><button data-del="${s.shareId}">Remove</button></div>`).join('')
+      || '<p class="muted">Not shared with anyone yet.</p>';
+    const url = link && `${location.origin}/#/s/${link.linkToken}`;
+    d.querySelector('#link').innerHTML = link
+      ? `<p class="muted">Anyone with this link can view${it.type === 'folder' ? ' this folder and everything in it' : ''}. No sign-in needed.</p>
+         <div class="row"><input type="text" readonly value="${url}" aria-label="Link"><button id="copy">Copy</button><button data-del="${link.shareId}">Remove</button></div>`
+      : `<button id="mkLink">Create public link</button>`;
+    d.querySelector('#copy')?.addEventListener('click', () => navigator.clipboard.writeText(url).then(() => toast('Link copied')));
+    d.querySelector('#mkLink')?.addEventListener('click', () => send('/api/shares', { itemType: it.type, itemId: it.id, link: true }).then(load, e => toast(e.message)));
+  };
+  d.onclick = e => { const id = e.target.dataset.del; if (id) api(`/api/shares/${id}`, { method: 'DELETE' }).then(load, err => toast(err.message)); };
+  d.querySelector('#addShare').onsubmit = e => {
+    e.preventDefault();
+    send('/api/shares', { itemType: it.type, itemId: it.id, userName: e.target.user.value, role: e.target.role.value })
+      .then(() => { e.target.user.value = ''; load(); }, err => toast(err.message));
+  };
+  load();
+}
+
+async function chunks(it) {
+  const m = await api(`/api/files/${it.id}/manifest`);
+  const sizes = m.chunks.map(c => c.byteSize), max = Math.max(...sizes, 1);
+  // Chunks reused by other files in this folder show how dedup shares storage.
+  const others = await Promise.all(view.items.filter(x => x.type === 'file' && x.id !== it.id).slice(0, 50)
+    .map(x => api(`/api/files/${x.id}/manifest`).catch(() => ({ chunks: [] }))));
+  const reused = new Set(others.flatMap(o => o.chunks.map(c => c.chunkHash)));
+  const d = dialog(`<h2>Chunks of “${esc(it.name)}”</h2>
+    <p class="muted">${m.chunks.length} chunks · min ${fmt(Math.min(...sizes))} · avg ${fmt(sizes.reduce((a, b) => a + b, 0) / (sizes.length || 1))} · max ${fmt(max)}
+      · ${m.chunks.filter(c => reused.has(c.chunkHash)).length} also used by other files in this folder · <span class="mono">${esc(m.file.chunker)}</span></p>
+    <div class="scroll"><table><thead><tr><th class="num">#</th><th class="num">Size</th><th>Relative size</th><th class="hide-sm">SHA-256</th><th></th></tr></thead><tbody>
+    ${m.chunks.slice(0, 1500).map(c => `<tr><td class="num">${c.sequenceIndex}</td><td class="num">${fmt(c.byteSize)}<div class="muted mono">${c.byteSize.toLocaleString()} B</div></td>
+      <td style="width:30%"><div class="bar"><i style="width:${(c.byteSize / max * 100).toFixed(1)}%"></i></div></td>
+      <td class="mono hide-sm">${c.chunkHash.slice(0, 12)}…${reused.has(c.chunkHash) ? ' <span class="ok">shared</span>' : ''}</td>
+      <td class="num"><button data-chunk="${c.sequenceIndex}" data-hash="${c.chunkHash}">Download</button></td></tr>`).join('')}</tbody></table></div>`);
+  d.onclick = async e => {
+    const b = e.target.closest('[data-chunk]'); if (!b) return;
+    try {
+      const r = await fetch(`/api/files/${it.id}/chunks/${b.dataset.chunk}`); if (!r.ok) throw new Error(`Error ${r.status}`);
+      const blob = await r.blob();
+      if (hex(await crypto.subtle.digest('SHA-256', await blob.arrayBuffer())) !== b.dataset.hash) throw new Error('Chunk failed its SHA-256 check');
+      const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: `${it.name}.chunk${b.dataset.chunk}` });
+      a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+      toast(`Chunk ${b.dataset.chunk}: ${fmt(blob.size)}, SHA-256 verified ✓`);
+    } catch (err) { toast(err.message); }
+  };
+}
+
+// ---------- public links ----------
+async function showPublic(token, folderId) {
+  $('#login').hidden = true; $('#app').hidden = false; $('#side').hidden = true; $('#meBox').hidden = true; $('#publicBadge').hidden = false;
   try {
-    const blob = await (await api(`/api/files/${fileId}/chunks/${btn.dataset.index}`)).blob();
-    const actual = hex(await crypto.subtle.digest('SHA-256', await blob.arrayBuffer()));
-    if (actual !== btn.dataset.hash) throw new Error(`chunk ${btn.dataset.index} failed its SHA-256 check`);
-    saveBlob(blob, `${f.fileName}.chunk${btn.dataset.index}`);
-    toast(`Chunk ${btn.dataset.index} downloaded: ${fmt(blob.size)}, SHA-256 verified ✓`);
-  } finally { btn.textContent = label; }
+    const r = await api(`/api/public/${token}/${folderId ? `?folderId=${folderId}` : ''}`);
+    view = { kind: 'public', token, base: `/api/public/${token}`, role: 'Viewer' };
+    if (r.file) { view.items = [{ type: 'file', id: r.file.fileId, name: r.file.fileName, owner: r.file.userId, size: r.file.totalSize, date: r.file.createdAt }]; return render([[null, 'Shared file']], view.base); }
+    view.items = fromListing(r);
+    render(r.path.map(p => [`#/s/${token}/${p.id}`, p.name]), view.base);
+  } catch { $('#main').innerHTML = '<p class="bad">This link is invalid or has been removed.</p>'; }
 }
 
-// Chunk view: a map (one square per chunk, outlined if another file shares it) plus a size table with per-chunk download.
-async function toggleChunks(row, id) {
-  const next = row.nextElementSibling;
-  if (next && next.classList.contains('chunkrow')) { next.remove(); return; }
-  const manifests = await Promise.all(fileList.map(f => manifest(f.fileId)));
-  const refs = new Map();
-  for (const m of manifests) for (const h of new Set(m.chunks.map(c => c.chunkHash))) refs.set(h, (refs.get(h) || 0) + 1);
-  const mine = manifests.find(m => m.file.fileId === id);
-  const chunks = mine.chunks.slice(0, 1500);
-  const sizes = mine.chunks.map(c => c.byteSize);
-  const max = sizes.reduce((a, b) => Math.max(a, b), 0), min = sizes.reduce((a, b) => Math.min(a, b), Infinity);
-  const avg = sizes.reduce((a, b) => a + b, 0) / sizes.length;
-  const shared = mine.chunks.filter(c => refs.get(c.chunkHash) > 1).length;
-  const hue = h => parseInt(h.slice(0, 4), 16) % 360;
-
-  const squares = chunks.map(c => `<i class="${refs.get(c.chunkHash) > 1 ? 'shared' : ''}" style="background:hsl(${hue(c.chunkHash)} 60% 55%)" title="#${c.sequenceIndex} · ${fmt(c.byteSize)}"></i>`).join('');
-  const rows = chunks.map(c => {
-    const n = refs.get(c.chunkHash);
-    return `<tr>
-      <td class="num">${c.sequenceIndex}</td>
-      <td class="num">${fmt(c.byteSize)}<div class="legend">${c.byteSize.toLocaleString()} B</div></td>
-      <td class="sizebar"><div class="bar"><i style="width:${(c.byteSize / max * 100).toFixed(1)}%;background:hsl(${hue(c.chunkHash)} 60% 55%)"></i></div></td>
-      <td class="mono hide-sm">${c.chunkHash.slice(0, 12)}…</td>
-      <td>${n > 1 ? `shared ×${n}` : 'unique'}</td>
-      <td class="num"><button data-act="chunk-dl" data-index="${c.sequenceIndex}" data-hash="${c.chunkHash}">Download</button></td>
-    </tr>`;
-  }).join('');
-
-  const tr = document.createElement('tr'); tr.className = 'chunkrow'; tr.dataset.file = id;
-  tr.innerHTML = `<td colspan="5">
-    <div class="legend"><b>${mine.chunks.length}</b> chunks · size min <b>${fmt(min)}</b> · avg <b>${fmt(avg)}</b> · max <b>${fmt(max)}</b> · <b>${shared}</b> shared with your other files (outlined) · ${mine.chunks.length - shared} unique</div>
-    <div class="map">${squares}</div>
-    <div class="chunkscroll"><table><thead><tr><th class="num">#</th><th class="num">Size</th><th>Relative size</th><th class="hide-sm">SHA-256</th><th>Used by</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
-    ${mine.chunks.length > chunks.length ? `<div class="legend">Showing first ${chunks.length} of ${mine.chunks.length}.</div>` : ''}</td>`;
-  row.after(tr);
+// ---------- performance ----------
+const PHASES = { total: 'Total (wall clock)', read_chunk: 'Read request + chunk', backpressure_wait: 'Waiting for workers (backpressure)', hash: 'SHA-256 hashing',
+  dedup_lookup: 'Dedup lookups (DB)', blob_write: 'Chunk writes (disk)', db_register: 'Register chunks (DB)', manifest_save: 'Save file manifest (DB)' };
+async function showPerf() {
+  view = { kind: 'perf', items: [] };
+  const routes = await api('/api/metrics');
+  const t = lastUpload?.timings, top = t && Math.max(...Object.values(t));
+  $('#main').innerHTML = `<nav class="crumbs"><span>Performance</span></nav>
+    <h3>Last upload ${lastUpload ? `· ${esc(lastUpload.name)} (${fmt(lastUpload.size)})` : ''}</h3>
+    ${t ? `<p class="muted">Where the time went. Worker phases are summed across the parallel workers, so they can exceed the wall-clock total.</p>
+      <table>${Object.keys(PHASES).filter(k => k in t).map(k => `<tr><td style="width:40%">${PHASES[k]}</td>
+        <td style="width:45%"><div class="bar"><i style="width:${(t[k] / top * 100).toFixed(1)}%"></i></div></td><td class="num">${t[k].toFixed(1)} ms</td></tr>`).join('')}</table>`
+      : '<p class="muted">Upload a file in “Stream to server” mode to see its per-phase timing here (also sent as a Server-Timing header, visible in DevTools → Network).</p>'}
+    <h3 style="margin-top:28px">API latency (last 1000 requests per route)</h3>
+    <table><thead><tr><th>Route</th><th class="num">Samples</th><th class="num">p50</th><th class="num">p95</th><th class="num">Max</th></tr></thead><tbody>
+    ${routes.map(r => `<tr><td class="mono">${esc(r.route)}</td><td class="num">${r.samples}</td><td class="num">${r.p50} ms</td><td class="num">${r.p95} ms</td><td class="num">${r.max} ms</td></tr>`).join('')}
+    </tbody></table>`;
 }
 
-// ---------- upload ----------
-const drop = $('#drop'), picker = $('#picker');
-drop.onclick = () => picker.click();
-drop.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); picker.click(); } };
-drop.ondragover = e => { e.preventDefault(); drop.classList.add('over'); };
-drop.ondragleave = () => drop.classList.remove('over');
-drop.ondrop = e => { e.preventDefault(); drop.classList.remove('over'); startUploads(e.dataTransfer.files); };
-picker.onchange = () => { startUploads(picker.files); picker.value = ''; };
+// ---------- uploads ----------
+const target = () => canWrite() ? view.folderId : null;
+$('#newBtn').onclick = () => {
+  const menu = $('#menu'), entries = [['New folder', newFolder], ['File upload', () => $('#pickFiles').click()], ['Folder upload', () => $('#pickFolder').click()]];
+  menu.innerHTML = entries.map(([l], i) => `<button data-i="${i}">${l}</button>`).join('');
+  menu.onclick = e => { const i = e.target.dataset.i; if (i) { menu.hidePopover(); entries[i][1](); } };
+  const r = $('#newBtn').getBoundingClientRect(); menu.style.top = `${r.bottom + 4}px`; menu.style.left = `${r.left}px`; menu.showPopover();
+};
+$('#pickFiles').onchange = e => { uploadAll([...e.target.files].map(file => ({ file, path: '' }))); e.target.value = ''; };
+$('#pickFolder').onchange = e => { uploadAll([...e.target.files].map(file => ({ file, path: file.webkitRelativePath.split('/').slice(0, -1).join('/') }))); e.target.value = ''; };
+$('#closeUploads').onclick = () => { $('#uploads').hidden = true; $('#jobs').innerHTML = ''; };
+try { $('#mode').value = localStorage.getItem('mode') || 'stream'; } catch {}
+$('#mode').onchange = e => { try { localStorage.setItem('mode', e.target.value); } catch {} };
 
-async function startUploads(files) {
-  for (const file of files) await uploadOne(file);
-  await Promise.all([loadStats(), loadFiles()]);
-}
-
-function newJob(name) {
-  const el = document.createElement('div'); el.className = 'job';
-  el.innerHTML = `<div><b>${esc(name)}</b> <span class="msg">starting…</span></div><div class="bar"><i></i></div>`;
-  $('#jobs').prepend(el);
-  return { set(pct, msg) { el.querySelector('i').style.width = pct + '%'; el.querySelector('.msg').textContent = msg; },
-           done(msg) { this.set(100, ''); el.querySelector('.msg').outerHTML = `<span class="result">${msg}</span>`; },
-           fail(msg) { el.querySelector('.msg').outerHTML = `<span class="error">${esc(msg)}</span>`; } };
-}
-
-async function uploadOne(file) {
-  const job = newJob(file.name);
-  const mode = document.querySelector('input[name=mode]:checked').value;
-  try {
-    if (mode === 'stream') {
-      const r = await xhrUpload(file, (l, t) => job.set(l / t * 100, `sending ${fmt(l)} / ${fmt(t)}`));
-      job.done(`✓ ${r.chunkCount} chunks: ${r.newChunks} new written, ${r.dedupedChunks} deduplicated. Sent ${fmt(file.size)}.`);
-    } else {
-      const r = await deltaUpload(file, job);
-      const saved = file.size ? (100 * (file.size - r.sent) / file.size).toFixed(1) : '0.0';
-      job.done(`✓ ${r.total} chunks: ${r.uploaded} uploaded, ${r.total - r.uploaded} already on server. Sent ${fmt(r.sent)} of ${fmt(file.size)} (${saved}% bandwidth saved).`);
-    }
-  } catch (err) { job.fail('✗ ' + err.message); }
-}
-
-function xhrUpload(file, onProgress) {
-  return new Promise((resolve, reject) => {
-    const x = new XMLHttpRequest();
-    x.open('POST', '/api/files?fileName=' + encodeURIComponent(file.name));
-    x.setRequestHeader('X-User-Id', user());
-    x.upload.onprogress = e => e.lengthComputable && onProgress(e.loaded, e.total);
-    x.onload = () => x.status === 201 ? resolve(JSON.parse(x.responseText)) : reject(new Error(`${x.status} ${x.responseText.slice(0, 200)}`));
-    x.onerror = () => reject(new Error('network error'));
-    x.send(file);
+const main = $('#main');
+main.addEventListener('dragover', e => { if (view.kind !== 'public') { e.preventDefault(); main.classList.add('drop'); } });
+main.addEventListener('dragleave', () => main.classList.remove('drop'));
+main.addEventListener('drop', e => {
+  e.preventDefault(); main.classList.remove('drop');
+  const roots = [...e.dataTransfer.items].map(i => i.webkitGetAsEntry?.()).filter(Boolean); // must be read synchronously
+  const out = [];
+  const walk = (entry, path) => new Promise(done => {
+    if (entry.isFile) return entry.file(file => { out.push({ file, path }); done(); }, done);
+    const reader = entry.createReader(), children = [];
+    const next = () => reader.readEntries(async batch => {
+      if (batch.length) { children.push(...batch); return next(); }
+      for (const c of children) await walk(c, path ? `${path}/${entry.name}` : entry.name);
+      done();
+    }, done);
+    next();
   });
+  Promise.all(roots.map(r => walk(r, ''))).then(() => uploadAll(out));
+});
+
+async function uploadAll(list) {
+  if (!list.length) return;
+  const folderId = target();
+  if (view.kind !== 'folder' || !canWrite()) toast('Uploading to My Drive');
+  $('#uploads').hidden = false;
+  for (const { file, path } of list) await uploadOne(file, folderId, path);
+  if (view.kind === 'folder') route();
 }
 
-// Delta sync: hash locally -> negotiate -> PUT only missing chunks -> commit manifest.
-async function deltaUpload(file, job) {
+async function uploadOne(file, folderId, path) {
+  const el = document.createElement('div'); el.className = 'job';
+  el.innerHTML = `<div><b>${esc(path ? `${path}/${file.name}` : file.name)}</b> <span class="msg muted">waiting…</span></div><div class="bar"><i style="width:0"></i></div>`;
+  $('#jobs').prepend(el);
+  const set = (pct, msg, cls = 'muted') => { el.querySelector('i').style.width = pct + '%'; const s = el.querySelector('.msg'); s.textContent = msg; s.className = 'msg ' + cls; };
+  const q = `fileName=${encodeURIComponent(file.name)}${folderId ? `&folderId=${folderId}` : ''}${path ? `&path=${encodeURIComponent(path)}` : ''}`;
+  try {
+    if ($('#mode').value === 'delta') {
+      const r = await deltaUpload(file, folderId, path, set);
+      set(100, `✓ sent ${fmt(r.sent)} of ${fmt(file.size)} (${r.uploaded}/${r.total} chunks new)`, 'ok');
+    } else {
+      const r = await new Promise((ok, fail) => {
+        const x = new XMLHttpRequest();
+        x.open('POST', `/api/files?${q}`);
+        x.upload.onprogress = e => e.lengthComputable && set(e.loaded / e.total * 100, `${fmt(e.loaded)} / ${fmt(e.total)}`);
+        x.onload = () => x.status === 201 ? ok(JSON.parse(x.responseText)) : fail(new Error(x.status === 403 ? 'No permission to upload here' : `Error ${x.status}`));
+        x.onerror = () => fail(new Error('Network error'));
+        x.send(file);
+      });
+      lastUpload = { name: file.name, size: file.size, timings: r.timings };
+      set(100, `✓ ${r.chunkCount} chunks, ${r.newChunks} new, ${r.dedupedChunks} deduplicated`, 'ok');
+    }
+  } catch (err) { set(0, `✗ ${err.message}`, 'bad'); }
+}
+
+// Delta sync: hash 4 MB blocks locally, ask which are missing, send only those, then commit the manifest.
+async function deltaUpload(file, folderId, path, set) {
   const hashes = [];
   for (let o = 0; o < file.size; o += CHUNK) {
     hashes.push(hex(await crypto.subtle.digest('SHA-256', await file.slice(o, o + CHUNK).arrayBuffer())));
-    job.set(Math.min(o + CHUNK, file.size) / file.size * 30, `hashing ${fmt(Math.min(o + CHUNK, file.size))} / ${fmt(file.size)}`);
+    set(Math.min(o + CHUNK, file.size) / file.size * 30, `hashing ${fmt(Math.min(o + CHUNK, file.size))}`);
   }
-  const { missing } = await (await api('/api/sync/negotiate', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ hashes }),
-  })).json();
-  const need = new Set(missing);
-  const todo = []; const seen = new Set();
+  const need = new Set((await send('/api/sync/negotiate', { hashes })).missing);
+  const todo = [], seen = new Set();
   hashes.forEach((h, i) => { if (need.has(h) && !seen.has(h)) { seen.add(h); todo.push(i); } });
-
   let sent = 0, next = 0, finished = 0;
   const worker = async () => {
     while (next < todo.length) {
-      const i = todo[next++]; const blob = file.slice(i * CHUNK, (i + 1) * CHUNK);
-      await api(`/api/chunks/${hashes[i]}`, { method: 'PUT', headers: { 'Content-Type': 'application/octet-stream' }, body: blob });
+      const i = todo[next++], blob = file.slice(i * CHUNK, (i + 1) * CHUNK);
+      await api(`/api/chunks/${hashes[i]}`, { method: 'PUT', body: blob });
       sent += blob.size; finished++;
-      job.set(30 + finished / todo.length * 65, `uploading missing chunks ${finished} / ${todo.length}`);
+      set(30 + finished / todo.length * 65, `sending chunk ${finished} / ${todo.length}`);
     }
   };
   await Promise.all(Array.from({ length: Math.min(4, todo.length) }, worker));
-
-  job.set(97, 'committing manifest…');
-  await api('/api/sync/commit', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ fileName: file.name, chunks: hashes, chunker: `browser-fixed-${CHUNK}` }),
-  });
+  set(97, 'committing…');
+  await send('/api/sync/commit', { fileName: file.name, chunks: hashes, chunker: `browser-fixed-${CHUNK}`, folderId, path: path || null });
   return { total: hashes.length, uploaded: todo.length, sent };
 }
 
-// ---------- boot ----------
-async function refresh() { try { await Promise.all([loadStats(), loadFiles()]); } catch (e) { toast('Cannot reach API: ' + e.message); } }
-$('#user').addEventListener('change', refresh);
-refresh();
+route();
 </script>
 </body>
 </html>

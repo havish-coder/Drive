@@ -6,7 +6,8 @@ public sealed record NegotiateRequest(IReadOnlyList<string> Hashes);
 
 public sealed record NegotiateResponse(IReadOnlyList<string> Missing);
 
-public sealed record CommitRequest(string FileName, IReadOnlyList<string> Chunks, string? Chunker);
+public sealed record CommitRequest(
+    string FileName, IReadOnlyList<string> Chunks, string? Chunker, Guid? FolderId = null, string? Path = null);
 
 public sealed record UploadResult(
     Guid FileId,
@@ -16,6 +17,7 @@ public sealed record UploadResult(
     int ChunkCount,
     int NewChunks,
     int DedupedChunks,
-    string Chunker);
+    string Chunker,
+    Dictionary<string, double>? Timings = null);
 
 public sealed record PutChunkResult(string Hash, bool Written);

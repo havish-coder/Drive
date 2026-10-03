@@ -14,31 +14,21 @@ public class ApiTests
 {
     private const int MB = 1024 * 1024;
 
-    private static async Task<UploadResult> UploadRawAsync(HttpClient http, byte[] data, string name, string user = "alice")
+    internal static async Task<UploadResult> UploadRawAsync(HttpClient http, byte[] data, string name, string query = "")
     {
-        using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/files?fileName={name}")
-        {
-            Content = new StreamContent(new MemoryStream(data)),
-        };
-        request.Headers.Add("X-User-Id", user);
-        using var response = await http.SendAsync(request);
+        using var response = await http.PostAsync($"/api/files?fileName={name}{query}", new StreamContent(new MemoryStream(data)));
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         return (await response.Content.ReadFromJsonAsync<UploadResult>())!;
     }
 
-    private static async Task<HttpResponseMessage> DownloadAsync(HttpClient http, Guid id, string user = "alice")
-    {
-        using var request = new HttpRequestMessage(HttpMethod.Get, $"/api/files/{id}");
-        request.Headers.Add("X-User-Id", user);
-        return await http.SendAsync(request);
-    }
+    private static Task<HttpResponseMessage> DownloadAsync(HttpClient http, Guid id) => http.GetAsync($"/api/files/{id}");
 
     [Fact]
     public async Task Upload_reconstructs_exactly_and_second_upload_writes_zero_chunks()
     {
         using var dir = new TempDir();
         await using var api = CreateApi(dir);
-        var http = api.CreateClient();
+        var http = await ClientForAsync(api, "alice");
         var data = RandomBytes(24 * MB, seed: 20);
 
         // 1. End-to-end upload
@@ -69,7 +59,7 @@ public class ApiTests
     {
         using var dir = new TempDir();
         await using var api = CreateApi(dir);
-        var http = api.CreateClient();
+        var http = await ClientForAsync(api, "alice");
         var a = RandomBytes(12 * MB, seed: 21);
         var b = a.Take(8 * MB).Concat(RandomBytes(4 * MB, seed: 22)).ToArray();
 
@@ -85,7 +75,7 @@ public class ApiTests
     {
         using var dir = new TempDir();
         await using var api = CreateApi(dir);
-        var http = api.CreateClient();
+        var http = await ClientForAsync(api, "alice");
         var data = RandomBytes(5 * MB + 123, seed: 23);
         await UploadRawAsync(http, data, "raw.bin");
 
@@ -94,7 +84,6 @@ public class ApiTests
         part.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
         form.Add(part, "file", "form.bin");
         using var request = new HttpRequestMessage(HttpMethod.Post, "/api/files") { Content = form };
-        request.Headers.Add("X-User-Id", "alice");
         using var response = await http.SendAsync(request);
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
@@ -109,17 +98,13 @@ public class ApiTests
     {
         using var dir = new TempDir();
         await using var api = CreateApi(dir); // 1 MB chunks
-        var http = api.CreateClient();
+        var http = await ClientForAsync(api, "alice");
         var data = RandomBytes(2 * MB + 500, seed: 28);
         var uploaded = await UploadRawAsync(http, data, "parts.bin");
         Assert.Equal(3, uploaded.ChunkCount);
 
-        async Task<HttpResponseMessage> Get(int index, string user = "alice")
-        {
-            using var request = new HttpRequestMessage(HttpMethod.Get, $"/api/files/{uploaded.FileId}/chunks/{index}");
-            request.Headers.Add("X-User-Id", user);
-            return await http.SendAsync(request);
-        }
+        var mallory = await ClientForAsync(api, "mallory");
+        Task<HttpResponseMessage> Get(int index, HttpClient? as_ = null) => (as_ ?? http).GetAsync($"/api/files/{uploaded.FileId}/chunks/{index}");
 
         // Middle chunk and the short last chunk both come back byte-exact.
         using (var middle = await Get(1))
@@ -132,7 +117,7 @@ public class ApiTests
         using (var last = await Get(2))
             Assert.Equal(data.AsSpan(2 * MB).ToArray(), await last.Content.ReadAsByteArrayAsync());
 
-        using (var stranger = await Get(0, user: "mallory")) Assert.Equal(HttpStatusCode.NotFound, stranger.StatusCode);
+        using (var stranger = await Get(0, mallory)) Assert.Equal(HttpStatusCode.NotFound, stranger.StatusCode);
         using (var outOfRange = await Get(3)) Assert.Equal(HttpStatusCode.NotFound, outOfRange.StatusCode);
         using (var negative = await Get(-1)) Assert.Equal(HttpStatusCode.NotFound, negative.StatusCode);
     }
@@ -142,7 +127,7 @@ public class ApiTests
     {
         using var dir = new TempDir();
         await using var api = CreateApi(dir);
-        var http = api.CreateClient();
+        var http = await ClientForAsync(api, "alice");
         var uploaded = await UploadRawAsync(http, RandomBytes(MB, seed: 29), "one.bin");
 
         var blob = Directory.EnumerateFiles(dir.Path("blobs"), "*", SearchOption.AllDirectories).First(f => !f.Contains(".tmp"));
@@ -150,9 +135,7 @@ public class ApiTests
         bytes[10] ^= 0xFF;
         await File.WriteAllBytesAsync(blob, bytes);
 
-        using var request = new HttpRequestMessage(HttpMethod.Get, $"/api/files/{uploaded.FileId}/chunks/0");
-        request.Headers.Add("X-User-Id", "alice");
-        using var response = await http.SendAsync(request);
+        using var response = await http.GetAsync($"/api/files/{uploaded.FileId}/chunks/0");
         Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
     }
 
@@ -174,10 +157,10 @@ public class ApiTests
     {
         using var dir = new TempDir();
         await using var api = CreateApi(dir);
-        var http = api.CreateClient();
-        var uploaded = await UploadRawAsync(http, RandomBytes(1000, seed: 24), "secret.txt", user: "alice");
+        var http = await ClientForAsync(api, "alice");
+        var uploaded = await UploadRawAsync(http, RandomBytes(1000, seed: 24), "secret.txt");
 
-        using var response = await DownloadAsync(http, uploaded.FileId, user: "mallory");
+        using var response = await DownloadAsync(await ClientForAsync(api, "mallory"), uploaded.FileId);
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
@@ -186,7 +169,7 @@ public class ApiTests
     {
         using var dir = new TempDir();
         await using var api = CreateApi(dir);
-        var http = api.CreateClient();
+        var http = await ClientForAsync(api, "alice");
         var data = RandomBytes(3 * MB, seed: 25);
         var uploaded = await UploadRawAsync(http, data, "fragile.bin");
 
@@ -207,7 +190,7 @@ public class ApiTests
     {
         using var dir = new TempDir();
         await using var api = CreateApi(dir);
-        var client = new SyncClient(api.CreateClient(), "bob");
+        var client = new SyncClient(await ClientForAsync(api, "bob"));
         var chunker = new FastCdcChunker(64 * 1024, 256 * 1024, 1024 * 1024);
 
         var original = RandomBytes(16 * MB, seed: 26);
@@ -231,7 +214,7 @@ public class ApiTests
     {
         using var dir = new TempDir();
         await using var api = CreateApi(dir);
-        var http = api.CreateClient();
+        var http = await ClientForAsync(api, "alice");
         var liar = ContentHash.Compute("popular content"u8);
 
         using var response = await http.PutAsync($"/api/chunks/{liar}", new ByteArrayContent("garbage"u8.ToArray()));
@@ -244,7 +227,7 @@ public class ApiTests
     {
         using var dir = new TempDir();
         await using var api = CreateApi(dir);
-        var http = api.CreateClient();
+        var http = await ClientForAsync(api, "alice");
         var unknown = ContentHash.Compute("never uploaded"u8);
 
         using var response = await http.PostAsJsonAsync("/api/sync/commit", new CommitRequest("x.bin", [unknown], null));

@@ -15,8 +15,9 @@ public sealed record PushResult(
 /// <summary>
 /// Delta-sync client: chunk and hash locally, ask the server which chunks it lacks,
 /// upload only those, then commit the ordered manifest.
+/// Authentication (cookie or bearer token) is configured on the <see cref="HttpClient"/>.
 /// </summary>
-public sealed class SyncClient(HttpClient http, string userId)
+public sealed class SyncClient(HttpClient http)
 {
     private sealed record LocalChunk(string Hash, long Offset, int Length);
 
@@ -89,9 +90,7 @@ public sealed class SyncClient(HttpClient http, string userId)
     /// <summary>Downloads a file and returns the SHA-256 of what was written.</summary>
     public async Task<string> PullAsync(Guid fileId, string outputPath, CancellationToken ct = default)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Get, $"api/files/{fileId}");
-        request.Headers.Add("X-User-Id", userId);
-        using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+        using var response = await http.GetAsync($"api/files/{fileId}", HttpCompletionOption.ResponseHeadersRead, ct);
         response.EnsureSuccessStatusCode();
 
         await using var body = await response.Content.ReadAsStreamAsync(ct);
@@ -117,7 +116,6 @@ public sealed class SyncClient(HttpClient http, string userId)
     private async Task<T> SendAsync<T>(HttpMethod method, string uri, HttpContent content, CancellationToken ct)
     {
         using var request = new HttpRequestMessage(method, uri) { Content = content };
-        request.Headers.Add("X-User-Id", userId);
         using var response = await http.SendAsync(request, ct);
         if (!response.IsSuccessStatusCode)
             throw new HttpRequestException($"{method} {uri} failed: {(int)response.StatusCode} {await response.Content.ReadAsStringAsync(ct)}");

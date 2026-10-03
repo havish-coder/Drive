@@ -28,8 +28,11 @@ public static class CloudSyncServiceCollectionExtensions
         services.AddSingleton(sp => Section(sp, "Storage").Get<StorageOptions>() ?? new StorageOptions());
 
         services.AddSingleton(sp => ChunkerFactory.Create(sp.GetRequiredService<ChunkingOptions>()));
-        services.AddSingleton<IMetadataRepository>(sp => new SqliteMetadataRepository(
+        services.AddSingleton(sp => new SqliteMetadataRepository(
             Section(sp, "Database")["ConnectionString"] ?? "Data Source=data/cloudsync.db"));
+        services.AddSingleton<IMetadataRepository>(sp => sp.GetRequiredService<SqliteMetadataRepository>());
+        services.AddSingleton<SqliteDrive>();
+        services.AddSingleton<RouteMetrics>();
 
         services.AddSingleton<IBlobStore>(sp =>
         {

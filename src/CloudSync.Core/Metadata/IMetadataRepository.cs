@@ -3,7 +3,8 @@ namespace CloudSync.Core.Metadata;
 public sealed record ChunkRecord(string ChunkHash, string StoragePath, long ByteSize);
 
 public sealed record FileRecord(
-    Guid FileId, string UserId, string FileName, long TotalSize, string? Sha256, string Chunker, DateTimeOffset CreatedAt);
+    Guid FileId, string UserId, string FileName, long TotalSize, string? Sha256, string Chunker, DateTimeOffset CreatedAt,
+    Guid? FolderId = null);
 
 public sealed record FileChunkRecord(int SequenceIndex, string ChunkHash);
 
@@ -33,8 +34,6 @@ public interface IMetadataRepository
     Task SaveFileAsync(FileRecord file, IReadOnlyList<FileChunkRecord> chunks, CancellationToken ct = default);
 
     Task<FileManifest?> GetManifestAsync(Guid fileId, CancellationToken ct = default);
-
-    Task<IReadOnlyList<FileRecord>> ListFilesAsync(string userId, CancellationToken ct = default);
 
     Task<StorageStats> GetStatsAsync(CancellationToken ct = default);
 }

@@ -35,6 +35,41 @@ public sealed class SqliteMetadataRepository : IMetadataRepository
         CREATE INDEX IF NOT EXISTS IX_Files_UserId ON Files(UserId);
         """;
 
+    // v2: accounts, folders, sharing. Legacy files get FolderId NULL (= the owner's root).
+    private const string SchemaV2 = """
+        CREATE TABLE Users (
+            UserId       TEXT PRIMARY KEY,
+            PasswordHash TEXT NOT NULL,
+            CreatedAt    TEXT NOT NULL);
+        CREATE TABLE ApiTokens (
+            TokenHash TEXT PRIMARY KEY,
+            UserId    TEXT NOT NULL REFERENCES Users(UserId) ON DELETE CASCADE,
+            CreatedAt TEXT NOT NULL);
+        CREATE TABLE Folders (
+            FolderId  TEXT PRIMARY KEY,
+            UserId    TEXT NOT NULL,
+            ParentId  TEXT NULL REFERENCES Folders(FolderId) ON DELETE CASCADE,
+            Name      TEXT NOT NULL,
+            CreatedAt TEXT NOT NULL);
+        CREATE UNIQUE INDEX UX_Folders_Name ON Folders(UserId, IFNULL(ParentId, ''), Name COLLATE NOCASE);
+        CREATE INDEX IX_Folders_Parent ON Folders(ParentId);
+        ALTER TABLE Files ADD COLUMN FolderId TEXT NULL REFERENCES Folders(FolderId) ON DELETE CASCADE;
+        CREATE INDEX IX_Files_Folder ON Files(FolderId);
+        CREATE TABLE Shares (
+            ShareId   TEXT PRIMARY KEY,
+            ItemType  TEXT NOT NULL CHECK (ItemType IN ('file', 'folder')),
+            ItemId    TEXT NOT NULL,
+            OwnerId   TEXT NOT NULL,
+            GranteeId TEXT NULL REFERENCES Users(UserId) ON DELETE CASCADE,
+            LinkToken TEXT NULL UNIQUE,
+            Role      TEXT NOT NULL CHECK (Role IN ('viewer', 'editor')),
+            CreatedAt TEXT NOT NULL,
+            CHECK ((GranteeId IS NULL) <> (LinkToken IS NULL)));
+        CREATE UNIQUE INDEX UX_Shares_Grantee ON Shares(ItemId, GranteeId);
+        CREATE INDEX IX_Shares_GranteeId ON Shares(GranteeId);
+        PRAGMA user_version = 2;
+        """;
+
     private readonly string _connectionString;
 
     public SqliteMetadataRepository(string connectionString)
@@ -54,6 +89,13 @@ public sealed class SqliteMetadataRepository : IMetadataRepository
     {
         await using var connection = await OpenAsync(ct);
         await ExecuteAsync(connection, Schema, ct);
+
+        await using var version = connection.CreateCommand();
+        version.CommandText = "PRAGMA user_version";
+        if ((long)(await version.ExecuteScalarAsync(ct))! >= 2) return;
+        await using var tx = await connection.BeginTransactionAsync(ct);
+        await ExecuteAsync(connection, SchemaV2, ct);
+        await tx.CommitAsync(ct);
     }
 
     public async Task<bool> ChunkExistsAsync(string hash, CancellationToken ct = default)
@@ -104,8 +146,8 @@ public sealed class SqliteMetadataRepository : IMetadataRepository
         {
             cmd.Transaction = tx;
             cmd.CommandText = """
-                INSERT INTO Files (FileId, UserId, FileName, TotalSize, Sha256, Chunker, CreatedAt)
-                VALUES ($id, $user, $name, $size, $sha, $chunker, $at)
+                INSERT INTO Files (FileId, UserId, FileName, TotalSize, Sha256, Chunker, CreatedAt, FolderId)
+                VALUES ($id, $user, $name, $size, $sha, $chunker, $at, $folder)
                 """;
             cmd.Parameters.AddWithValue("$id", file.FileId.ToString());
             cmd.Parameters.AddWithValue("$user", file.UserId);
@@ -114,6 +156,7 @@ public sealed class SqliteMetadataRepository : IMetadataRepository
             cmd.Parameters.AddWithValue("$sha", (object?)file.Sha256 ?? DBNull.Value);
             cmd.Parameters.AddWithValue("$chunker", file.Chunker);
             cmd.Parameters.AddWithValue("$at", file.CreatedAt.ToString("O"));
+            cmd.Parameters.AddWithValue("$folder", (object?)file.FolderId?.ToString() ?? DBNull.Value);
             await cmd.ExecuteNonQueryAsync(ct);
         }
 
@@ -166,18 +209,6 @@ public sealed class SqliteMetadataRepository : IMetadataRepository
         return new FileManifest(file, entries);
     }
 
-    public async Task<IReadOnlyList<FileRecord>> ListFilesAsync(string userId, CancellationToken ct = default)
-    {
-        await using var connection = await OpenAsync(ct);
-        await using var cmd = connection.CreateCommand();
-        cmd.CommandText = $"{SelectFile} WHERE UserId = $user ORDER BY CreatedAt DESC";
-        cmd.Parameters.AddWithValue("$user", userId);
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        var files = new List<FileRecord>();
-        while (await reader.ReadAsync(ct)) files.Add(ReadFile(reader));
-        return files;
-    }
-
     public async Task<StorageStats> GetStatsAsync(CancellationToken ct = default)
     {
         await using var connection = await OpenAsync(ct);
@@ -193,18 +224,19 @@ public sealed class SqliteMetadataRepository : IMetadataRepository
         return new StorageStats(reader.GetInt64(0), reader.GetInt64(1), reader.GetInt64(2), reader.GetInt64(3));
     }
 
-    private const string SelectFile = "SELECT FileId, UserId, FileName, TotalSize, Sha256, Chunker, CreatedAt FROM Files";
+    internal const string SelectFile = "SELECT FileId, UserId, FileName, TotalSize, Sha256, Chunker, CreatedAt, FolderId FROM Files";
 
-    private static FileRecord ReadFile(SqliteDataReader r) => new(
+    internal static FileRecord ReadFile(SqliteDataReader r) => new(
         Guid.Parse(r.GetString(0)),
         r.GetString(1),
         r.GetString(2),
         r.GetInt64(3),
         r.IsDBNull(4) ? null : r.GetString(4),
         r.GetString(5),
-        DateTimeOffset.Parse(r.GetString(6), CultureInfo.InvariantCulture));
+        DateTimeOffset.Parse(r.GetString(6), CultureInfo.InvariantCulture),
+        r.IsDBNull(7) ? null : Guid.Parse(r.GetString(7)));
 
-    private async Task<SqliteConnection> OpenAsync(CancellationToken ct)
+    internal async Task<SqliteConnection> OpenAsync(CancellationToken ct = default)
     {
         var connection = new SqliteConnection(_connectionString);
         await connection.OpenAsync(ct);

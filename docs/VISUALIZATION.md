@@ -19,6 +19,7 @@ Every diagram here is [Mermaid](https://mermaid.js.org). GitHub renders them in 
 | 12 | Chunking: fixed vs CDC | Why content-defined chunking survives inserts |
 | 13 | On-disk layout | Where do the bytes live? |
 | 14 | Concept map | How do all the ideas fit together? |
+| 15 | Authorization | Who may do what to which file or folder? |
 
 ---
 
@@ -38,9 +39,11 @@ flowchart LR
     PL["UploadPipeline<br/>producer-consumer"]
     CK["IChunker<br/>Fixed 4MB or FastCDC"]
     CS["ChunkStore<br/>dedup + single-flight"]
+    AU["Auth<br/>cookie + bearer token"]
+    DRV["SqliteDrive<br/>folders, shares, access checks"]
   end
 
-  DB[("SQLite catalog<br/>Files, Chunks, File_Chunks")]
+  DB[("SQLite catalog<br/>Users, Folders, Shares,<br/>Files, Chunks, File_Chunks")]
 
   subgraph Stores["IBlobStore, chosen by config"]
     LOCAL["LocalFileSystemBlobStore"]
@@ -58,6 +61,9 @@ flowchart LR
   UI --> EP
   CLI --> EP
   CURL --> EP
+  EP --> AU
+  EP --> DRV
+  DRV --> DB
   EP --> FS
   FS --> PL
   PL --> CK
@@ -202,6 +208,15 @@ classDiagram
   FileService --> IBlobStore
   FileService --> IMetadataRepository
   FileService --> IChunker
+
+  class SqliteDrive {
+    +AccessAsync(user, owner, path, fileId) Role
+    +ListAsync(user, folderId) Listing
+    +EnsurePathAsync(owner, parent, path) Guid
+    +ShareWithUserAsync() / LinkAsync()
+    +SearchAsync(user, query)
+  }
+  SqliteDrive --> SqliteMetadataRepository : shares connection
 ```
 
 Patterns: **Strategy** (`IChunker`, `IBlobStore`), **Template Method** (`ChunkerBase`), **Repository**
@@ -215,17 +230,48 @@ Patterns: **Strategy** (`IChunker`, `IBlobStore`), **Template Method** (`Chunker
 
 ```mermaid
 erDiagram
+  Users ||--o{ ApiTokens : "has"
+  Users ||--o{ Shares : "receives"
+  Folders ||--o{ Folders : "contains"
+  Folders ||--o{ Files : "contains"
   Files ||--o{ File_Chunks : "has ordered"
   Chunks ||--o{ File_Chunks : "referenced by"
 
+  Users {
+    string UserId PK "lowercase username"
+    string PasswordHash "PBKDF2-SHA256"
+    string CreatedAt
+  }
+  ApiTokens {
+    string TokenHash PK "SHA-256 of the token"
+    string UserId FK
+    string CreatedAt
+  }
+  Folders {
+    string FolderId PK
+    string UserId "owner"
+    string ParentId FK "null = root"
+    string Name "unique per parent"
+    string CreatedAt
+  }
   Files {
     string FileId PK
-    string UserId
+    string UserId "owner"
+    string FolderId FK "null = root"
     string FileName
     int TotalSize
     string Sha256 "null for delta-synced files"
     string Chunker
     string CreatedAt
+  }
+  Shares {
+    string ShareId PK
+    string ItemType "file or folder"
+    string ItemId
+    string OwnerId
+    string GranteeId FK "null for public links"
+    string LinkToken "null for user shares"
+    string Role "viewer or editor"
   }
   Chunks {
     string ChunkHash PK "SHA-256 hex"
@@ -240,7 +286,8 @@ erDiagram
   }
 ```
 
-`File_Chunks` is the junction table. Position lives there because the same chunk can sit at different positions in
+Folders form a tree through `ParentId`; deleting a folder cascades to its subfolders and files. A file with
+`FolderId` NULL sits at its owner's root ("My Drive"). `File_Chunks` is the junction table. Position lives there because the same chunk can sit at different positions in
 different files. The foreign key on `ChunkHash` means a manifest can never reference a chunk that was not stored.
 
 ---
@@ -563,8 +610,36 @@ mindmap
       Negotiate
       PUT missing chunks
       Commit manifest
+    Drive
+      Folder tree by ParentId
+      Shares inherit downwards
+      Public link tokens
+      Login PBKDF2 + cookie
     Trust and safety
       Server re-hashes uploads
       Owner-only downloads
       Verified before sending
 ```
+
+---
+
+## 15. Authorization
+
+```mermaid
+flowchart TD
+  R["Request to /api/..."] --> A{"Session cookie or<br/>bearer token valid?"}
+  A -- no --> U(["401 Unauthorized"])
+  A -- yes --> I["Load the item and its folder path<br/>(recursive CTE, root first)"]
+  I --> O{"Caller owns it?"}
+  O -- yes --> OWN(["Owner: everything,<br/>including share and move"])
+  O -- no --> S{"Share on the item or on<br/>any folder above it?"}
+  S -- no --> N(["404, as if it did not exist"])
+  S -- editor --> E(["Editor: read, upload,<br/>new folder, rename, delete"])
+  S -- viewer --> V(["Viewer: list, download, preview"])
+  P["Public link: /api/public/TOKEN"] --> T{"Token exists and the item is<br/>inside the shared subtree?"}
+  T -- yes --> V
+  T -- no --> N
+```
+
+Every file, folder, manifest and chunk endpoint goes through the same check (`SqliteDrive.AccessAsync`), so a
+new endpoint cannot accidentally skip it by re-implementing the rules.

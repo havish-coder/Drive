@@ -5,8 +5,50 @@ Status: `open` · `fixed` · `wontfix`
 
 | # | Status | Summary |
 |---|---|---|
+| 8 | open | Global dedup leaks chunk existence via negotiate; no proof-of-possession on commit (gap S3, S4) |
+| 7 | open | Deleting files/folders never frees chunk storage: no garbage collector |
+| 6 | open | Measured: registering chunk rows in SQLite costs ~107 ms per insert under 4 concurrent workers (gap L1) |
+| 5 | fixed | No way to see where upload latency goes: per-phase timings, Server-Timing, route metrics, Performance page |
+| 4 | fixed | Identity was a spoofable `X-User-Id` header: real accounts, sessions and API tokens |
+| 3 | fixed | Flat file list only: folders, sharing, public links, folder upload, search, previews, Drive-style UI |
 | 2 | fixed | No visual overview of the whole project: added `docs/VISUALIZATION.md` (14 Mermaid diagrams) |
 | 1 | fixed | Chunk sizes not visible in the UI; no way to download an individual chunk |
+
+Full analysis of what remains versus a real product: [`docs/GAP_ANALYSIS.md`](GAP_ANALYSIS.md).
+
+---
+
+## #6 / #7 / #8 Open items found while measuring and reviewing
+
+- **#6** The new timings show chunk-row registration dominating a 500 MB upload (13.3 s summed across 4 workers).
+  WAL with `synchronous=FULL` fsyncs every commit and the workers queue on SQLite's single writer. Fix options in
+  gap L1 (`synchronous=NORMAL` or one batched transaction per upload). Left open: it is a durability trade-off to choose.
+- **#7** `DELETE` on files and folders removes catalog rows only. Needs mark-and-sweep GC with a grace period so an
+  in-flight upload that deduped against a chunk can't lose it.
+- **#8** See gap analysis S3 and S4.
+
+---
+
+## #3 / #4 / #5 Drive features, real login, latency measurement
+
+**Request:** make it Google-Drive-like (folders, files inside folders or at the root, sharing, folder upload,
+search, image/PDF preview, proper frontend), fix the weak security, and show where latency goes. Code written in
+"ponytail" style: reuse what exists, standard library and platform features first, fewest files.
+
+**Changes**
+- Schema v2 via `PRAGMA user_version`: `Users`, `ApiTokens`, `Folders` (self-referencing `ParentId`), `Shares`,
+  and `Files.FolderId` (NULL = root). Existing databases upgrade in place; legacy files stay at the owner's root.
+- `SqliteDrive`: users, tokens, folders, sharing and search, with recursive CTEs for paths and inherited access.
+  Every access decision goes through `AccessAsync`.
+- Auth: PBKDF2 passwords, HttpOnly SameSite=Strict cookie, hashed bearer tokens; `X-User-Id` removed. CLI gains `login`.
+- Endpoints: folders CRUD + move (cycle-safe), file rename/move/delete, upload into a folder or a `path`,
+  shares + public links, search, `?inline=true` preview (images and PDF only), `/api/metrics`.
+- Upload timings per phase; per-route latency recorder; Performance page.
+- New single-page UI (no build step).
+
+**Verification:** 28 tests (8 new: auth and spoofing, folders, sharing roles and inheritance, public-link scope,
+search scope, preview headers, timings, migration of a pre-folder database). A headless-browser run as owner,
+shared user and anonymous link visitor. `scripts/acceptance.sh` at 500 MB through the gRPC worker still passes.
 
 ---
 

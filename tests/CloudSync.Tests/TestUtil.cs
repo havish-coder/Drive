@@ -1,4 +1,5 @@
 using System.IO.Pipelines;
+using System.Net.Http.Json;
 using System.Security.Cryptography;
 using CloudSync.Api;
 using CloudSync.Core.Chunking;
@@ -49,6 +50,14 @@ public static class TestUtil
         Directory.Exists(root)
             ? Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories).Count(f => !f.Contains($"{System.IO.Path.DirectorySeparatorChar}.tmp"))
             : 0;
+
+    /// <summary>Registers the user and returns a client holding their session cookie.</summary>
+    public static async Task<HttpClient> ClientForAsync(WebApplicationFactory<ApiMarker> api, string user)
+    {
+        var http = api.CreateClient();
+        (await http.PostAsJsonAsync("/api/auth/register", new { userName = user, password = "password123" })).EnsureSuccessStatusCode();
+        return http;
+    }
 
     public static WebApplicationFactory<ApiMarker> CreateApi(
         TempDir dir, int chunkSize = 1024 * 1024, Action<IServiceCollection>? services = null) =>

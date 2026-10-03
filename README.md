@@ -4,7 +4,7 @@ Distributed chunk-based file storage and sync engine in C# / .NET 8: streaming i
 content-defined (FastCDC) chunking, SHA-256 content addressing, block-level dedup, SQLite catalog,
 gRPC storage workers and a delta-sync CLI.
 
-Design: [`docs/LLD.md`](docs/LLD.md)
+Design: [`docs/LLD.md`](docs/LLD.md) · Diagrams: [`docs/VISUALIZATION.md`](docs/VISUALIZATION.md) · Gaps vs a real product: [`docs/GAP_ANALYSIS.md`](docs/GAP_ANALYSIS.md) · Change log: [`docs/ISSUES.md`](docs/ISSUES.md)
 
 ## Layout
 
@@ -21,36 +21,48 @@ Design: [`docs/LLD.md`](docs/LLD.md)
 
 ```bash
 dotnet run --project src/CloudSync.StorageWorker        # :5100, only needed for Storage:Mode=Remote
-dotnet run --project src/CloudSync.Api                  # :5000
-
-curl -X POST -T big.iso -H 'X-User-Id: me' 'http://localhost:5000/api/files?fileName=big.iso'
-curl -H 'X-User-Id: me' http://localhost:5000/api/files/<fileId> -o big.copy.iso
-dotnet run --project src/CloudSync.Cli -- push big.iso --user me
+dotnet run --project src/CloudSync.Api                  # :5000 → open http://localhost:5000 and create an account
 ```
+
+On a machine with only a newer .NET runtime, set `DOTNET_ROLL_FORWARD=Major` first.
 
 Config (`src/CloudSync.Api/appsettings.json`, or env vars like `CloudSync__Storage__Mode=Remote`):
 `Chunking:Algorithm` = `FixedSize` | `FastCdc`, `Storage:Mode` = `Local` | `Remote`, `Pipeline:Workers`.
 
 ## Web UI
 
-Start the API and open <http://localhost:5000/>. Drag-and-drop upload in two modes (server-side chunking, or
-browser-side delta sync that hashes 4 MB blocks with `crypto.subtle` and sends only the missing ones), live
-dedup stats, SHA-256-verified downloads, and a per-file chunk map that outlines chunks shared with your other files.
-The page is a single static file (`src/CloudSync.Api/wwwroot/index.html`); no build step.
+A Drive-style single page (`src/CloudSync.Api/wwwroot/index.html`, no build step): sign in / create account,
+My Drive with folders and breadcrumbs, drag-and-drop of files **and whole folders**, rename / move / delete,
+sharing with other users as viewer or editor (inherited by everything inside a folder), public "anyone with the
+link" URLs that work without an account, Shared with me, search, image and PDF preview, a per-file chunk view
+with verified single-chunk download, and a Performance page showing where each upload's time went.
+
+## CLI (delta sync)
+
+```bash
+dotnet run --project src/CloudSync.Cli -- login alice          # saves a token to ~/.cloudsync/token
+dotnet run --project src/CloudSync.Cli -- push big.iso         # sends only chunks the server lacks
+dotnet run --project src/CloudSync.Cli -- pull <fileId> out.iso
+```
 
 ## API
 
+All `/api` routes need a session cookie or `Authorization: Bearer <token>`, except `/api/auth/*` and `/api/public/*`.
+
 | Method | Path | |
 |---|---|---|
-| POST | `/api/files?fileName=` | Streaming upload (raw body or multipart) |
-| GET | `/api/files/{id}` | Reconstructed download (every chunk re-verified) |
-| GET | `/api/files/{id}/manifest` | Ordered chunk list |
-| GET | `/api/files/{id}/chunks/{n}` | One verified chunk (owner only) |
-| GET | `/api/files` | Caller's files |
-| POST | `/api/sync/negotiate` | `{hashes}` → `{missing}` |
-| PUT | `/api/chunks/{hash}` | Upload one chunk (server re-hashes) |
-| POST | `/api/sync/commit` | `{fileName, chunks}` → file |
-| GET | `/api/stats` | Logical vs physical bytes, dedup ratio |
+| POST | `/api/auth/register` · `/login` · `/logout` · `/token` | Accounts; `token` returns a CLI bearer token |
+| GET | `/api/folders/root/children` · `/api/folders/{id}/children` | Folder listing with breadcrumbs and your role |
+| POST · PATCH · DELETE | `/api/folders` · `/api/folders/{id}` | Create; rename / move (`{name, moveTo}`); delete with contents |
+| POST | `/api/files?fileName=&folderId=&path=` | Streaming upload into a folder; `path=a/b` creates folders |
+| GET | `/api/files/{id}[?inline=true]` | Download, or preview inline (images and PDF only) |
+| PATCH · DELETE | `/api/files/{id}` | Rename / move; delete |
+| GET | `/api/files/{id}/manifest` · `/chunks/{n}` | Ordered chunk list; one verified chunk |
+| POST · GET · DELETE | `/api/shares` · `/api/shares/{type}/{id}` · `/api/shares/{shareId}` | Share with a user or create a public link; list; revoke |
+| GET | `/api/shared-with-me` · `/api/search?q=` | Items shared with you; name search |
+| GET | `/api/public/{token}/[?folderId=]` · `/api/public/{token}/files/{id}` | Public link browsing and download, no login |
+| POST · PUT | `/api/sync/negotiate` · `/api/chunks/{hash}` · `/api/sync/commit` | Delta sync |
+| GET | `/api/stats` · `/api/metrics` | Dedup totals; per-route latency p50 / p95 / max |
 
 ## Test
 

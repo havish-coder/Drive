@@ -95,6 +95,9 @@ interface IMetadataRepository {
 
 ## 4. Schema (SQLite, WAL, `foreign_keys=ON`, `busy_timeout=5000`)
 
+> Schema v1 below. v2 (accounts, folders, sharing) is migrated in place via `PRAGMA user_version`; see
+> `docs/VISUALIZATION.md` §4 for the full current schema and §15 for the authorization model.
+
 ```sql
 CREATE TABLE Files (
   FileId TEXT PRIMARY KEY, UserId TEXT NOT NULL, FileName TEXT NOT NULL,

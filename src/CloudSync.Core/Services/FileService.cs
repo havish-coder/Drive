@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Diagnostics;
 using System.IO.Pipelines;
 using System.Threading.Channels;
 using CloudSync.Core.Chunking;
@@ -16,23 +17,27 @@ public sealed class FileService(
     UploadPipeline pipeline,
     IChunker chunker)
 {
-    public async Task<UploadResult> UploadAsync(string userId, string fileName, PipeReader source, CancellationToken ct = default)
+    public async Task<UploadResult> UploadAsync(
+        string userId, string fileName, PipeReader source, CancellationToken ct = default, Guid? folderId = null)
     {
-        var run = await pipeline.RunAsync(chunker, source, ct);
+        var timings = new Timings();
+        var start = Stopwatch.GetTimestamp();
+        var run = await pipeline.RunAsync(chunker, source, ct, timings);
 
         // Manifest last, in one transaction: a failed upload never leaves a visible half-file.
-        var file = new FileRecord(Guid.NewGuid(), userId, fileName, run.TotalSize, run.Sha256, chunker.Name, DateTimeOffset.UtcNow);
+        var t = Stopwatch.GetTimestamp();
+        var file = new FileRecord(Guid.NewGuid(), userId, fileName, run.TotalSize, run.Sha256, chunker.Name, DateTimeOffset.UtcNow, folderId);
         await metadata.SaveFileAsync(file, run.Chunks.Select(c => new FileChunkRecord(c.SequenceIndex, c.Hash)).ToList(), ct);
+        timings.Add("manifest_save", t);
+        timings.Add("total", start);
 
         var written = run.Chunks.Count(c => c.Written);
-        return new UploadResult(file.FileId, fileName, file.TotalSize, file.Sha256, run.Chunks.Count, written, run.Chunks.Count - written, chunker.Name);
+        return new UploadResult(file.FileId, fileName, file.TotalSize, file.Sha256, run.Chunks.Count, written,
+            run.Chunks.Count - written, chunker.Name, timings.ToMilliseconds());
     }
 
     public Task<FileManifest?> GetManifestAsync(Guid fileId, CancellationToken ct = default) =>
         metadata.GetManifestAsync(fileId, ct);
-
-    public Task<IReadOnlyList<FileRecord>> ListFilesAsync(string userId, CancellationToken ct = default) =>
-        metadata.ListFilesAsync(userId, ct);
 
     public Task<StorageStats> GetStatsAsync(CancellationToken ct = default) => metadata.GetStatsAsync(ct);
 
@@ -153,7 +158,7 @@ public sealed class FileService(
 
         var total = request.Chunks.Sum(h => sizes[h]);
         var chunkerName = request.Chunker ?? "client";
-        var file = new FileRecord(Guid.NewGuid(), userId, request.FileName, total, null, chunkerName, DateTimeOffset.UtcNow);
+        var file = new FileRecord(Guid.NewGuid(), userId, request.FileName, total, null, chunkerName, DateTimeOffset.UtcNow, request.FolderId);
         await metadata.SaveFileAsync(file, request.Chunks.Select((h, i) => new FileChunkRecord(i, h)).ToList(), ct);
 
         return new UploadResult(file.FileId, file.FileName, total, null, request.Chunks.Count, 0, request.Chunks.Count, chunkerName);

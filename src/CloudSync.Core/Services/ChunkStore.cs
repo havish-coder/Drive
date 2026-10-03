@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using CloudSync.Core.Metadata;
 using CloudSync.Core.Storage;
 
@@ -21,9 +22,12 @@ public sealed class ChunkStore(IBlobStore blobs, IMetadataRepository metadata)
     // Single-flight: concurrent writers of the same new hash in this process wait on one write.
     private readonly ConcurrentDictionary<string, Task> _inFlight = new();
 
-    public async Task<ChunkStoreOutcome> StoreAsync(string hash, ReadOnlyMemory<byte> data, CancellationToken ct = default)
+    public async Task<ChunkStoreOutcome> StoreAsync(string hash, ReadOnlyMemory<byte> data, CancellationToken ct = default, Timings? timings = null)
     {
-        if (await metadata.ChunkExistsAsync(hash, ct))
+        var t = Stopwatch.GetTimestamp();
+        var exists = await metadata.ChunkExistsAsync(hash, ct);
+        timings?.Add("dedup_lookup", t);
+        if (exists)
             return ChunkStoreOutcome.Deduplicated;
 
         var mine = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -37,8 +41,12 @@ public sealed class ChunkStore(IBlobStore blobs, IMetadataRepository metadata)
         try
         {
             // Cross-process races are settled by the blob store (atomic publish) and the PK (INSERT OR IGNORE).
+            t = Stopwatch.GetTimestamp();
             var written = await blobs.PutAsync(hash, data, ct);
+            timings?.Add("blob_write", t);
+            t = Stopwatch.GetTimestamp();
             await metadata.TryAddChunkAsync(new ChunkRecord(hash, blobs.GetStorageKey(hash), data.Length), ct);
+            timings?.Add("db_register", t);
             mine.SetResult();
             return written ? ChunkStoreOutcome.Written : ChunkStoreOutcome.Deduplicated;
         }

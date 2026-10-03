@@ -1,10 +1,13 @@
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
 using CloudSync.Cli;
 using CloudSync.Core.Chunking;
 
 const string Usage = """
     Usage:
-      cloudsync push <path>              [--server URL] [--user ID] [--chunker fastcdc|fixed] [--avg BYTES]
-      cloudsync pull <fileId> <outPath>  [--server URL] [--user ID]
+      cloudsync login <username>         [--server URL]
+      cloudsync push <path>              [--server URL] [--chunker fastcdc|fixed] [--avg BYTES]
+      cloudsync pull <fileId> <outPath>  [--server URL]
     """;
 
 var positional = new List<string>();
@@ -16,9 +19,24 @@ for (var i = 0; i < args.Length; i++)
 }
 
 var server = options.GetValueOrDefault("server", "http://localhost:5000");
-var user = options.GetValueOrDefault("user", "cli-user");
+var tokenFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".cloudsync", "token");
 using var http = new HttpClient { BaseAddress = new Uri(server.TrimEnd('/') + "/"), Timeout = Timeout.InfiniteTimeSpan };
-var client = new SyncClient(http, user);
+
+if (positional is ["login", var userName])
+{
+    var password = options.GetValueOrDefault("password") ?? ReadHidden("Password: ");
+    var response = await http.PostAsJsonAsync("api/auth/token", new { userName, password });
+    if (!response.IsSuccessStatusCode) { Console.Error.WriteLine("Login failed."); return 1; }
+    Directory.CreateDirectory(Path.GetDirectoryName(tokenFile)!);
+    await File.WriteAllTextAsync(tokenFile, (await response.Content.ReadFromJsonAsync<TokenReply>())!.Token);
+    Console.WriteLine($"Logged in. Token saved to {tokenFile}");
+    return 0;
+}
+
+var token = options.GetValueOrDefault("token") ?? (File.Exists(tokenFile) ? File.ReadAllText(tokenFile).Trim() : null);
+if (token is null) { Console.Error.WriteLine("Not logged in. Run: cloudsync login <username>"); return 1; }
+http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+var client = new SyncClient(http);
 
 switch (positional)
 {
@@ -51,3 +69,18 @@ switch (positional)
         Console.Error.WriteLine(Usage);
         return 1;
 }
+
+static string ReadHidden(string prompt)
+{
+    Console.Write(prompt);
+    var chars = new List<char>();
+    for (ConsoleKeyInfo key; (key = Console.ReadKey(intercept: true)).Key != ConsoleKey.Enter;)
+    {
+        if (key.Key == ConsoleKey.Backspace) { if (chars.Count > 0) chars.RemoveAt(chars.Count - 1); }
+        else chars.Add(key.KeyChar);
+    }
+    Console.WriteLine();
+    return new string(chars.ToArray());
+}
+
+internal sealed record TokenReply(string Token);

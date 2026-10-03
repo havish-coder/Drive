@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.IO.Pipelines;
 using System.Runtime.ExceptionServices;
 using System.Security.Cryptography;
@@ -15,6 +16,21 @@ public sealed class PipelineOptions
     public int ChannelCapacity { get; set; } = 4;
 }
 
+/// <summary>Per-phase elapsed time. Phases done by parallel workers are summed across workers, so they can exceed wall time.</summary>
+public sealed class Timings
+{
+    private readonly ConcurrentDictionary<string, long> _ticks = new();
+
+    public void Add(string phase, long startTimestamp)
+    {
+        var elapsed = Stopwatch.GetElapsedTime(startTimestamp).Ticks;
+        _ticks.AddOrUpdate(phase, elapsed, (_, total) => total + elapsed);
+    }
+
+    public Dictionary<string, double> ToMilliseconds() =>
+        _ticks.ToDictionary(p => p.Key, p => Math.Round(TimeSpan.FromTicks(p.Value).TotalMilliseconds, 1));
+}
+
 public sealed record ChunkResult(int SequenceIndex, string Hash, int Length, bool Written);
 
 public sealed record PipelineResult(IReadOnlyList<ChunkResult> Chunks, long TotalSize, string Sha256);
@@ -25,7 +41,7 @@ public sealed record PipelineResult(IReadOnlyList<ChunkResult> Chunks, long Tota
 /// </summary>
 public sealed class UploadPipeline(ChunkStore store, PipelineOptions options)
 {
-    public async Task<PipelineResult> RunAsync(IChunker chunker, PipeReader source, CancellationToken ct = default)
+    public async Task<PipelineResult> RunAsync(IChunker chunker, PipeReader source, CancellationToken ct = default, Timings? timings = null)
     {
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         var channel = Channel.CreateBounded<RawChunk>(new BoundedChannelOptions(Math.Max(1, options.ChannelCapacity))
@@ -41,13 +57,18 @@ public sealed class UploadPipeline(ChunkStore store, PipelineOptions options)
         {
             try
             {
+                var t = Stopwatch.GetTimestamp();
                 await foreach (var chunk in chunker.ChunkAsync(source, cts.Token))
                 {
                     fileHash.AppendData(chunk.Span);
                     totalSize += chunk.Length;
+                    timings?.Add("read_chunk", t);
+                    t = Stopwatch.GetTimestamp();
                     try
                     {
                         await channel.Writer.WriteAsync(chunk, cts.Token);
+                        timings?.Add("backpressure_wait", t);
+                        t = Stopwatch.GetTimestamp();
                     }
                     catch
                     {
@@ -70,8 +91,10 @@ public sealed class UploadPipeline(ChunkStore store, PipelineOptions options)
             {
                 using (chunk)
                 {
+                    var t = Stopwatch.GetTimestamp();
                     var hash = ContentHash.Compute(chunk.Span);
-                    var outcome = await store.StoreAsync(hash, chunk.Memory, cts.Token);
+                    timings?.Add("hash", t);
+                    var outcome = await store.StoreAsync(hash, chunk.Memory, cts.Token, timings);
                     results.Add(new ChunkResult(chunk.SequenceIndex, hash, chunk.Length, outcome == ChunkStoreOutcome.Written));
                 }
             }

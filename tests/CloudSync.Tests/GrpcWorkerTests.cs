@@ -35,8 +35,7 @@ public class GrpcWorkerTests
         var (worker, client) = StartWorker(dir);
         await using var _ = worker;
         await using var api = CreateApi(dir, services: s => s.AddSingleton<IBlobStore>(new GrpcBlobStore(client)));
-        var http = api.CreateClient();
-        http.DefaultRequestHeaders.Add("X-User-Id", "carol");
+        var http = await ClientForAsync(api, "carol");
         var data = RandomBytes(6 * 1024 * 1024 + 7, seed: 30);
 
         var first = await (await http.PostAsync("/api/files?fileName=remote.bin", new ByteArrayContent(data)))

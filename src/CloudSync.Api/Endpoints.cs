@@ -3,6 +3,9 @@ using System.IO.Pipelines;
 using CloudSync.Core;
 using CloudSync.Core.Services;
 using CloudSync.Core.Sync;
+using CloudSync.Infrastructure.Metadata;
+using Microsoft.AspNetCore.StaticFiles;
+using Microsoft.Data.Sqlite;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Net.Http.Headers;
@@ -22,16 +25,16 @@ public static class Endpoints
     {
         app.MapGet("/health", () => Results.Ok("ok"));
 
-        var api = app.MapGroup("/api");
+        var api = app.MapGroup("/api").RequireAuthorization();
         api.MapPost("/files", UploadAsync);
-        api.MapGet("/files", async (HttpContext ctx, FileService files) =>
-            Results.Ok(await files.ListFilesAsync(UserId(ctx), ctx.RequestAborted)));
-        api.MapGet("/files/{fileId:guid}", DownloadAsync);
-        api.MapGet("/files/{fileId:guid}/manifest", async (Guid fileId, HttpContext ctx, FileService files) =>
+        api.MapGet("/files/{fileId:guid}", async (Guid fileId, bool? inline, HttpContext ctx, FileService files, SqliteDrive drive, ILoggerFactory logs) =>
         {
-            var manifest = await files.GetManifestAsync(fileId, ctx.RequestAborted);
-            return manifest is null || manifest.File.UserId != UserId(ctx) ? Results.NotFound() : Results.Ok(manifest);
+            if (!await CanReadAsync(ctx, drive, fileId)) ctx.Response.StatusCode = StatusCodes.Status404NotFound;
+            else await SendFileAsync(ctx, files, logs, fileId, inline == true);
         });
+        api.MapGet("/files/{fileId:guid}/manifest", async (Guid fileId, HttpContext ctx, FileService files, SqliteDrive drive) =>
+            await CanReadAsync(ctx, drive, fileId) ? Results.Ok(await files.GetManifestAsync(fileId, ctx.RequestAborted)) : Results.NotFound());
+        api.MapGet("/metrics", (RouteMetrics metrics) => Results.Ok(metrics.Snapshot()));
         api.MapGet("/files/{fileId:guid}/chunks/{index:int}", DownloadChunkAsync);
         api.MapGet("/stats",async (HttpContext ctx, FileService files) =>
             Results.Ok(await files.GetStatsAsync(ctx.RequestAborted)));
@@ -39,16 +42,20 @@ public static class Endpoints
         api.MapPost("/sync/negotiate", (NegotiateRequest request, HttpContext ctx, FileService files) =>
             Guarded(async () => Results.Ok(new NegotiateResponse(await files.FindMissingAsync(request.Hashes, ctx.RequestAborted)))));
         api.MapPut("/chunks/{hash}", PutChunkAsync);
-        api.MapPost("/sync/commit", (CommitRequest request, HttpContext ctx, FileService files) =>
+        api.MapPost("/sync/commit", (CommitRequest request, HttpContext ctx, FileService files, SqliteDrive drive) =>
             Guarded(async () =>
             {
-                var result = await files.CommitAsync(UserId(ctx), request, ctx.RequestAborted);
+                if (await DriveEndpoints.WritableOwnerAsync(ctx, drive, request.FolderId) is not { } owner) return Results.StatusCode(403);
+                var folder = request.Path is { Length: > 0 } path ? await drive.EnsurePathAsync(owner, request.FolderId, path) : request.FolderId;
+                var result = await files.CommitAsync(owner, request with { FolderId = folder }, ctx.RequestAborted);
                 return Results.Created($"/api/files/{result.FileId}", result);
             }));
     }
 
-    private static async Task<IResult> UploadAsync(HttpContext ctx, FileService files, string? fileName)
+    private static async Task<IResult> UploadAsync(HttpContext ctx, FileService files, SqliteDrive drive, string? fileName, Guid? folderId, string? path)
     {
+        if (await DriveEndpoints.WritableOwnerAsync(ctx, drive, folderId) is not { } owner) return Results.StatusCode(403);
+        var folder = path is { Length: > 0 } ? await drive.EnsurePathAsync(owner, folderId, path) : folderId;
         DisableBodyLimit(ctx);
         var request = ctx.Request;
 
@@ -74,24 +81,37 @@ public static class Endpoints
 
         async Task<IResult> StoreAsync(PipeReader source, string name)
         {
-            var result = await files.UploadAsync(UserId(ctx), Path.GetFileName(name), source, ctx.RequestAborted);
+            var result = await files.UploadAsync(owner, SqliteDrive.CleanName(Path.GetFileName(name)), source, ctx.RequestAborted, folder);
             await source.CompleteAsync();
+            ctx.Response.Headers["Server-Timing"] = string.Join(", ", result.Timings!.Select(t => $"{t.Key};dur={t.Value}"));
             return Results.Created($"/api/files/{result.FileId}", result);
         }
     }
 
-    private static async Task DownloadAsync(Guid fileId, HttpContext ctx, FileService files, ILoggerFactory logs)
+    private static readonly FileExtensionContentTypeProvider ContentTypes = new();
+
+    private static async Task<bool> CanReadAsync(HttpContext ctx, SqliteDrive drive, Guid fileId) =>
+        await drive.GetFileAsync(fileId) is { } file && await drive.FileRoleAsync(ctx.UserId(), file) >= Role.Viewer;
+
+    /// <summary>
+    /// Streams a file. Inline (preview) only for raster images and PDF: an HTML or SVG file shown inline would run its
+    /// scripts on our origin (stored XSS), so everything else is always a download.
+    /// </summary>
+    internal static async Task SendFileAsync(HttpContext ctx, FileService files, ILoggerFactory logs, Guid fileId, bool inline)
     {
-        var manifest = await files.GetManifestAsync(fileId, ctx.RequestAborted);
-        if (manifest is null || manifest.File.UserId != UserId(ctx))
+        if (await files.GetManifestAsync(fileId, ctx.RequestAborted) is not { } manifest)
         {
             ctx.Response.StatusCode = StatusCodes.Status404NotFound;
             return;
         }
 
-        ctx.Response.ContentType = "application/octet-stream";
+        var previewable = ContentTypes.TryGetContentType(manifest.File.FileName, out var type) &&
+            (type == "application/pdf" || (type.StartsWith("image/") && type != "image/svg+xml"));
+        inline &= previewable;
+        ctx.Response.ContentType = inline ? type! : "application/octet-stream";
         ctx.Response.ContentLength = manifest.File.TotalSize;
-        ctx.Response.Headers.ContentDisposition = new ContentDispositionHeaderValue("attachment")
+        ctx.Response.Headers.XContentTypeOptions = "nosniff";
+        ctx.Response.Headers.ContentDisposition = new ContentDispositionHeaderValue(inline ? "inline" : "attachment")
         {
             FileNameStar = manifest.File.FileName,
         }.ToString();
@@ -109,11 +129,11 @@ public static class Endpoints
         }
     }
 
-    // Scoped to a file (not a bare hash) so chunks are only reachable by an owner of a file containing them.
-    private static async Task DownloadChunkAsync(Guid fileId, int index, HttpContext ctx, FileService files, ILoggerFactory logs)
+    // Scoped to a file (not a bare hash) so chunks are only reachable by someone who can read a file containing them.
+    private static async Task DownloadChunkAsync(Guid fileId, int index, HttpContext ctx, FileService files, SqliteDrive drive, ILoggerFactory logs)
     {
-        var manifest = await files.GetManifestAsync(fileId, ctx.RequestAborted);
-        if (manifest is null || manifest.File.UserId != UserId(ctx) ||
+        var manifest = await CanReadAsync(ctx, drive, fileId) ? await files.GetManifestAsync(fileId, ctx.RequestAborted) : null;
+        if (manifest is null ||
             manifest.Chunks.FirstOrDefault(c => c.SequenceIndex == index) is not { } entry)
         {
             ctx.Response.StatusCode = StatusCodes.Status404NotFound;
@@ -164,11 +184,15 @@ public static class Endpoints
         }
     }
 
-    private static async Task<IResult> Guarded(Func<Task<IResult>> action)
+    internal static async Task<IResult> Guarded(Func<Task<IResult>> action)
     {
         try
         {
             return await action();
+        }
+        catch (SqliteException ex) when (ex.SqliteExtendedErrorCode == 2067) // SQLITE_CONSTRAINT_UNIQUE
+        {
+            return Results.Conflict(new { error = "An item with that name already exists here." });
         }
         catch (MissingChunksException ex)
         {
@@ -179,10 +203,6 @@ public static class Endpoints
             return Results.BadRequest(new { error = ex.Message });
         }
     }
-
-    // Stand-in for real authentication.
-    private static string UserId(HttpContext ctx) =>
-        ctx.Request.Headers["X-User-Id"].FirstOrDefault() is { Length: > 0 } user ? user : "anonymous";
 
     private static void DisableBodyLimit(HttpContext ctx)
     {
