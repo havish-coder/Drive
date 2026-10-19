@@ -4,343 +4,712 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>CloudSync Drive</title>
+<meta name="color-scheme" content="light dark">
+<link rel="preload" href="/fonts/plus-jakarta-sans-latin-500-normal.woff2" as="font" type="font/woff2" crossorigin>
 <style>
+  /* Design system: docs/design-system/cloudsync-drive/MASTER.md (generated with ui-ux-pro-max).
+     Plus Jakarta Sans (OFL, self-hosted) · Phosphor icons (MIT, inline sprite). */
+  @font-face { font-family: "Plus Jakarta Sans"; font-weight: 400; font-display: swap; src: url(/fonts/plus-jakarta-sans-latin-400-normal.woff2) format("woff2"); }
+  @font-face { font-family: "Plus Jakarta Sans"; font-weight: 500; font-display: swap; src: url(/fonts/plus-jakarta-sans-latin-500-normal.woff2) format("woff2"); }
+  @font-face { font-family: "Plus Jakarta Sans"; font-weight: 600; font-display: swap; src: url(/fonts/plus-jakarta-sans-latin-600-normal.woff2) format("woff2"); }
+  @font-face { font-family: "Plus Jakarta Sans"; font-weight: 700; font-display: swap; src: url(/fonts/plus-jakarta-sans-latin-700-normal.woff2) format("woff2"); }
+
   :root {
-    --bg: #f8fafd; --card: #fff; --ink: #1f1f1f; --muted: #5f6368; --line: #e3e6ea; --hover: #f1f4f9;
-    --accent: #0b57d0; --accent-soft: #d3e3fd; --accent-ink: #fff; --ok: #137333; --bad: #b3261e; --folder: #f4b400;
+    --primary: #2563EB; --on-primary: #FFFFFF; --primary-soft: #EEF3FE; --accent: #B45309;
+    --bg: #F8FAFC; --surface: #FFFFFF; --fg: #0F172A; --muted: #475569; --subtle: #F1F5F9;
+    --border: #E2E8F0; --destructive: #DC2626; --on-destructive: #FFFFFF; --success: #15803D; --folder: #D97706;
+    --ring: 0 0 0 3px color-mix(in srgb, var(--primary) 35%, transparent);
+    --shadow-sm: 0 1px 2px rgba(15, 23, 42, .06); --shadow-lg: 0 10px 30px rgba(15, 23, 42, .12);
+    --r-sm: 8px; --r-md: 12px; --r-lg: 16px;
+    --s1: 4px; --s2: 8px; --s3: 16px; --s4: 24px; --s5: 32px;
+    --ease: 180ms cubic-bezier(.2, 0, 0, 1);
   }
   @media (prefers-color-scheme: dark) {
-    :root { --bg: #131417; --card: #1b1c20; --ink: #e3e3e3; --muted: #9aa0a6; --line: #2d2f33; --hover: #24262b;
-            --accent: #a8c7fa; --accent-soft: #29374f; --accent-ink: #062e6f; --ok: #6dd58c; --bad: #f2b8b5; }
+    :root {
+      --primary: #60A5FA; --on-primary: #0B1220; --primary-soft: #172554; --accent: #FBBF24;
+      --bg: #0B1220; --surface: #111A2E; --fg: #E2E8F0; --muted: #94A3B8; --subtle: #17223A;
+      --border: #22304A; --destructive: #F87171; --on-destructive: #0B1220; --success: #4ADE80; --folder: #FBBF24;
+      --shadow-sm: none; --shadow-lg: 0 12px 32px rgba(0, 0, 0, .5);
+    }
   }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
+
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 400 16px/1.5 "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif; word-spacing: .06em; }
   [hidden] { display: none !important; }
   button, input, select { font: inherit; color: inherit; }
-  button { cursor: pointer; border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 6px 14px; }
-  button:hover { background: var(--hover); }
-  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
-  button.icon { border: 0; background: none; border-radius: 50%; width: 32px; height: 32px; padding: 0; font-size: 18px; color: var(--muted); }
-  button.icon:hover { background: var(--hover); }
-  input[type=text], input[type=password], input[type=search], select {
-    border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--card); width: 100%; }
-  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  .muted { color: var(--muted); } .bad { color: var(--bad); } .ok { color: var(--ok); }
-  .mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; }
+  a { color: var(--primary); }
+  :focus-visible { outline: none; box-shadow: var(--ring); }
+  .ic, .kind, .star { width: 20px; height: 20px; flex: none; fill: currentColor; }
+  .muted { color: var(--muted); } .small { font-size: 14px; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
-  /* login */
-  #login { min-height: 100vh; display: grid; place-items: center; padding: 16px; }
-  #login form { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 28px; width: min(360px, 100%); display: grid; gap: 12px; }
-  #login h1 { margin: 0; font-size: 22px; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--s2); min-height: 44px; padding: 0 var(--s3);
+         border-radius: var(--r-sm); border: 1px solid var(--border); background: var(--surface); cursor: pointer; font-weight: 600; font-size: 15px;
+         transition: background var(--ease), border-color var(--ease), color var(--ease); white-space: nowrap; text-decoration: none; color: var(--fg); }
+  .btn:hover { background: var(--subtle); }
+  .btn.primary { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
+  .btn.primary:hover { background: color-mix(in srgb, var(--primary) 88%, #000); }
+  .btn.danger { background: var(--destructive); border-color: var(--destructive); color: var(--on-destructive); }
+  .btn.ghost { border-color: transparent; background: transparent; }
+  .btn.ghost:hover { background: var(--subtle); }
+  .icon-btn { width: 44px; min-width: 44px; padding: 0; border-color: transparent; background: transparent; color: var(--muted); }
+  .icon-btn:hover { background: var(--subtle); color: var(--fg); }
+  .icon-btn[aria-pressed="true"] { color: var(--primary); background: var(--primary-soft); }
+  label.field { display: grid; gap: var(--s1); font-size: 14px; font-weight: 600; }
+  .input, select.input { width: 100%; min-height: 44px; padding: 0 12px; border: 1px solid var(--border); border-radius: var(--r-sm);
+         background: var(--surface); transition: border-color var(--ease), box-shadow var(--ease); }
+  .input:focus { border-color: var(--primary); box-shadow: var(--ring); outline: none; }
 
-  /* shell */
-  header { display: flex; align-items: center; gap: 12px; padding: 10px 16px; }
-  .logo { font-weight: 650; font-size: 18px; min-width: 200px; display: flex; align-items: center; gap: 8px; }
-  header input[type=search] { max-width: 640px; border-radius: 999px; background: var(--hover); border: 0; padding: 10px 16px; }
-  .me { margin-left: auto; display: flex; align-items: center; gap: 8px; white-space: nowrap; }
-  .layout { display: grid; grid-template-columns: 240px 1fr; gap: 8px; padding: 0 16px 16px; }
-  aside { display: flex; flex-direction: column; gap: 4px; }
-  aside .new { align-self: flex-start; padding: 12px 20px; border-radius: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.15); margin-bottom: 8px; }
-  aside a { color: inherit; text-decoration: none; padding: 7px 14px; border-radius: 999px; }
-  aside a:hover { background: var(--hover); }
-  aside a.on { background: var(--accent-soft); font-weight: 600; }
-  aside .box { margin-top: 12px; padding: 0 14px; font-size: 12px; }
-  main { background: var(--card); border-radius: 16px; padding: 12px 20px; min-height: calc(100vh - 80px); position: relative; }
-  main.drop { outline: 2px dashed var(--accent); outline-offset: -6px; }
-  .crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; font-size: 18px; margin: 4px 0 12px; }
-  .crumbs a { color: inherit; text-decoration: none; padding: 2px 8px; border-radius: 8px; }
-  .crumbs a:hover { background: var(--hover); }
-  table { width: 100%; border-collapse: collapse; }
-  th { text-align: left; color: var(--muted); font-weight: 500; font-size: 12px; padding: 8px; border-bottom: 1px solid var(--line); }
-  td { padding: 6px 8px; border-bottom: 1px solid var(--line); }
-  tr.item { cursor: pointer; } tr.item:hover td { background: var(--hover); }
+  /* ---------- sign in ---------- */
+  #login { min-height: 100vh; display: grid; grid-template-columns: 1.1fr 1fr; }
+  .brand { background: var(--primary); color: var(--on-primary); padding: var(--s5) clamp(var(--s4), 6vw, 80px); display: flex; flex-direction: column; justify-content: center; gap: var(--s4); }
+  .brand h1 { font-size: clamp(28px, 3.4vw, 44px); line-height: 1.15; margin: 0; letter-spacing: -.02em; }
+  .brand ul { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--s3); }
+  .brand li { display: flex; gap: 12px; align-items: flex-start; } .brand li .ic { width: 24px; height: 24px; margin-top: 2px; }
+  .brand li b { display: block; }
+  .brand p { margin: 0; opacity: .9; }
+  .logo { display: flex; align-items: center; gap: var(--s2); font-weight: 700; font-size: 20px; letter-spacing: -.01em; }
+  .logo .ic { width: 28px; height: 28px; }
+  .auth { display: grid; place-items: center; padding: var(--s4); }
+  .auth form { width: min(400px, 100%); display: grid; gap: var(--s3); }
+  .auth h2 { margin: 0; font-size: 26px; letter-spacing: -.01em; }
+  .tabs { display: grid; grid-template-columns: 1fr 1fr; background: var(--subtle); border-radius: var(--r-sm); padding: 4px; }
+  .tabs button { min-height: 40px; border: 0; border-radius: 6px; background: transparent; cursor: pointer; font-weight: 600; color: var(--muted); transition: background var(--ease); }
+  .tabs button[aria-selected="true"] { background: var(--surface); color: var(--fg); box-shadow: var(--shadow-sm); }
+  .error { color: var(--destructive); font-size: 14px; min-height: 21px; margin: 0; }
+  @media (max-width: 860px) { #login { grid-template-columns: 1fr; } .brand { padding: var(--s4); } .brand ul { display: none; } }
+
+  /* ---------- shell ---------- */
+  .topbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: var(--s3); padding: var(--s2) var(--s3); background: var(--bg); }
+  .topbar .logo { min-width: 216px; }
+  .search { flex: 1; max-width: 720px; position: relative; }
+  .search .ic { position: absolute; left: 14px; top: 12px; color: var(--muted); pointer-events: none; }
+  .search input { width: 100%; min-height: 48px; padding: 0 var(--s3) 0 44px; border-radius: 999px; border: 1px solid transparent; background: var(--subtle); transition: background var(--ease), border-color var(--ease); }
+  .search input:focus { background: var(--surface); border-color: var(--border); box-shadow: var(--ring); outline: none; }
+  .me { margin-left: auto; display: flex; align-items: center; gap: var(--s2); }
+  .avatar { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: var(--primary); color: var(--on-primary); font-weight: 700; font-size: 15px; }
+  #menuToggle { display: none; }
+  .layout { display: grid; grid-template-columns: 248px 1fr; gap: var(--s3); padding: 0 var(--s3) var(--s3); align-items: start; }
+  aside { position: sticky; top: 72px; display: flex; flex-direction: column; gap: 2px; padding-top: var(--s1); }
+  .new-btn { align-self: flex-start; min-height: 56px; padding: 0 var(--s4); border-radius: var(--r-md); box-shadow: var(--shadow-sm); margin-bottom: var(--s3); }
+  nav.side a { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 var(--s3); border-radius: 999px; color: var(--fg);
+               text-decoration: none; font-weight: 500; font-size: 15px; transition: background var(--ease); }
+  nav.side a:hover { background: var(--subtle); }
+  nav.side a[aria-current="page"] { background: var(--primary-soft); color: var(--primary); font-weight: 700; }
+  .storage { margin-top: var(--s4); padding: 0 var(--s3); font-size: 13px; color: var(--muted); }
+  .meter { height: 8px; border-radius: 4px; background: var(--subtle); overflow: hidden; margin: var(--s2) 0; }
+  .meter i { display: block; height: 100%; border-radius: 4px; background: var(--primary); transition: width var(--ease); }
+  .mode { margin-top: var(--s3); padding: 0 var(--s3); }
+  .mode label { font-size: 13px; color: var(--muted); font-weight: 600; }
+  main { background: var(--surface); border-radius: var(--r-lg); min-height: calc(100vh - 88px); display: grid; grid-template-columns: 1fr auto; overflow: hidden; border: 1px solid var(--border); }
+  .pane { min-width: 0; padding: var(--s3) var(--s4) var(--s4); position: relative; }
+  .pane.drop::after { content: "Drop to upload"; position: absolute; inset: 8px; border: 2px dashed var(--primary); border-radius: var(--r-md); display: grid; place-items: center;
+                      background: color-mix(in srgb, var(--primary) 8%, transparent); color: var(--primary); font-weight: 700; font-size: 18px; pointer-events: none; }
+  .toolbar { display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; min-height: 52px; margin-bottom: var(--s2); }
+  .crumbs { display: flex; align-items: center; flex-wrap: wrap; gap: 2px; font-size: 20px; font-weight: 600; flex: 1; min-width: 0; }
+  .crumbs a, .crumbs span { padding: 4px 8px; border-radius: var(--r-sm); color: var(--fg); text-decoration: none; }
+  .crumbs a { color: var(--muted); } .crumbs a:hover { background: var(--subtle); color: var(--fg); }
+  .crumbs .ic { width: 16px; height: 16px; color: var(--muted); }
+  .tools { display: flex; align-items: center; gap: var(--s1); }
+  .tools select { width: auto; min-height: 40px; font-size: 14px; }
+
+  /* list view */
+  .list { width: 100%; border-collapse: collapse; }
+  .list th { text-align: left; font-size: 13px; font-weight: 600; color: var(--muted); padding: var(--s2); border-bottom: 1px solid var(--border); white-space: nowrap; }
+  .list td { padding: 0 var(--s2); height: 52px; border-bottom: 1px solid var(--border); font-size: 15px; transition: background var(--ease); }
+  .list tr.item { cursor: pointer; } .list tr.item:hover td, .list tr.item:focus-within td { background: var(--subtle); }
   .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .name { display: flex; align-items: center; gap: 10px; word-break: break-word; }
-  .badge { flex: none; width: 28px; height: 22px; border-radius: 4px; color: #fff; font-size: 9px; font-weight: 700; display: grid; place-items: center; }
-  .empty { text-align: center; color: var(--muted); padding: 56px 16px; }
-  @media (max-width: 760px) {
-    .layout { grid-template-columns: 1fr; } .logo { min-width: 0; } .hide-sm { display: none; }
-    aside { flex-direction: row; flex-wrap: wrap; align-items: center; } aside .new { margin: 0; } aside .box { display: none; }
-  }
+  .name { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .name .star { width: 16px; height: 16px; color: var(--accent); }
+  .kind { width: 24px; height: 24px; flex: none; }
+  .open { all: unset; cursor: pointer; display: contents; }
 
-  /* menus, dialogs, uploads */
-  #menu { position: fixed; inset: auto; margin: 0; padding: 6px 0; border: 1px solid var(--line); border-radius: 8px; background: var(--card);
-          color: var(--ink); box-shadow: 0 4px 16px rgba(0,0,0,.18); min-width: 180px; }
-  #menu button { display: block; width: 100%; text-align: left; border: 0; border-radius: 0; background: none; padding: 8px 16px; }
-  #menu button:hover { background: var(--hover); }
-  dialog { border: 0; border-radius: 16px; padding: 24px; background: var(--card); color: var(--ink); width: min(720px, calc(100vw - 32px)); max-height: 90vh; }
-  dialog::backdrop { background: rgba(0,0,0,.45); }
-  dialog h2 { margin: 0 0 14px; font-size: 18px; padding-right: 32px; word-break: break-word; }
-  dialog .x { position: absolute; top: 14px; right: 14px; }
-  dialog.preview { width: min(1100px, calc(100vw - 32px)); }
-  dialog.preview img { max-width: 100%; max-height: 75vh; display: block; margin: auto; }
-  dialog.preview iframe { width: 100%; height: 75vh; border: 0; }
-  .row { display: flex; gap: 8px; align-items: center; margin: 8px 0; } .row > input { flex: 1; }
-  .scroll { max-height: 50vh; overflow: auto; }
-  .bar { height: 8px; background: var(--line); border-radius: 99px; overflow: hidden; } .bar i { display: block; height: 100%; background: var(--accent); }
-  #uploads { position: fixed; right: 16px; bottom: 16px; width: min(380px, calc(100vw - 32px)); background: var(--card); border: 1px solid var(--line);
-             border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,.18); max-height: 50vh; overflow: auto; }
-  #uploads h3 { margin: 0; padding: 10px 14px; font-size: 14px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--line); }
-  .job { padding: 8px 14px; font-size: 12.5px; border-bottom: 1px solid var(--line); } .job b { word-break: break-all; }
-  #toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 10px 16px;
-           border-radius: 8px; opacity: 0; pointer-events: none; transition: .2s; max-width: 90vw; }
-  #toast.show { opacity: 1; }
+  /* grid view */
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(184px, 1fr)); gap: var(--s3); }
+  .card { position: relative; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); overflow: hidden; cursor: pointer;
+          transition: border-color var(--ease), box-shadow var(--ease); }
+  .card:hover { border-color: color-mix(in srgb, var(--primary) 40%, var(--border)); box-shadow: var(--shadow-lg); }
+  .thumb { aspect-ratio: 4 / 3; display: grid; place-items: center; background: var(--subtle); }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .thumb .kind { width: 56px; height: 56px; }
+  .card footer { display: flex; align-items: center; gap: var(--s2); padding: var(--s2) var(--s1) var(--s2) 12px; font-size: 14px; font-weight: 600; }
+  .card footer span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .section-label { font-size: 13px; font-weight: 600; color: var(--muted); margin: var(--s3) 0 var(--s2); }
+
+  /* skeleton + empty */
+  .sk { height: 52px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; padding: 0 var(--s2); }
+  .sk i { display: block; height: 12px; border-radius: 6px; background: var(--subtle); animation: pulse 1.2s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .45; } }
+  .empty { display: grid; justify-items: center; gap: var(--s2); text-align: center; padding: 72px var(--s3); color: var(--muted); }
+  .empty .ic { width: 56px; height: 56px; color: var(--border); }
+  .empty h3 { margin: 0; color: var(--fg); font-size: 18px; }
+
+  /* details panel */
+  #details { width: 340px; border-left: 1px solid var(--border); padding: var(--s3); overflow: auto; max-height: calc(100vh - 90px); position: sticky; top: 72px; }
+  #details header { display: flex; align-items: center; gap: var(--s2); margin-bottom: var(--s3); }
+  #details h2 { font-size: 17px; margin: 0; flex: 1; word-break: break-word; }
+  #details dl { display: grid; grid-template-columns: auto 1fr; gap: var(--s2) var(--s3); font-size: 14px; margin: 0 0 var(--s3); }
+  #details dt { color: var(--muted); } #details dd { margin: 0; word-break: break-word; }
+  #details h3 { font-size: 14px; margin: var(--s4) 0 var(--s2); }
+  .timeline { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; font-size: 14px; }
+  .timeline li { display: grid; grid-template-columns: 28px 1fr; gap: var(--s2); }
+  .dot { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--subtle); color: var(--muted); font-size: 12px; font-weight: 700; }
+  .version { display: flex; align-items: center; gap: var(--s2); padding: var(--s2) 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+  .version div { flex: 1; }
+
+  /* menus, dialogs, toasts, uploads */
+  #menu { position: fixed; inset: auto; margin: 0; padding: 6px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); color: var(--fg);
+          box-shadow: var(--shadow-lg); min-width: 220px; }
+  #menu button { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 40px; padding: 0 12px; border: 0; border-radius: 6px; background: none;
+                 cursor: pointer; text-align: left; font-size: 15px; transition: background var(--ease); }
+  #menu button:hover, #menu button:focus-visible { background: var(--subtle); box-shadow: none; }
+  #menu button.danger { color: var(--destructive); }
+  #menu hr { border: 0; border-top: 1px solid var(--border); margin: 6px 0; }
+  dialog { border: 0; border-radius: var(--r-lg); padding: var(--s4); background: var(--surface); color: var(--fg); width: min(560px, calc(100vw - 32px));
+           max-height: 90vh; box-shadow: var(--shadow-lg); }
+  dialog::backdrop { background: rgba(2, 6, 23, .55); }
+  dialog h2 { margin: 0 0 var(--s3); font-size: 20px; padding-right: 48px; word-break: break-word; }
+  dialog .x { position: absolute; top: 12px; right: 12px; }
+  dialog .actions { display: flex; justify-content: flex-end; gap: var(--s2); margin-top: var(--s4); flex-wrap: wrap; }
+  dialog.wide { width: min(1100px, calc(100vw - 32px)); }
+  dialog.wide img, dialog.wide video { max-width: 100%; max-height: 72vh; display: block; margin: auto; border-radius: var(--r-sm); }
+  dialog.wide iframe { width: 100%; height: 72vh; border: 0; border-radius: var(--r-sm); }
+  dialog audio { width: 100%; }
+  .row { display: flex; gap: var(--s2); align-items: flex-end; } .row > :first-child { flex: 1; }
+  .people { display: grid; gap: var(--s1); margin: var(--s3) 0; }
+  .person { display: flex; align-items: center; gap: 12px; min-height: 48px; }
+  .person div { flex: 1; }
+  .scroll { max-height: 52vh; overflow: auto; }
+  .picker button { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 44px; padding: 0 12px; border: 0; border-radius: var(--r-sm); background: none; cursor: pointer; }
+  .picker button:hover { background: var(--subtle); }
+  .bar { height: 8px; border-radius: 4px; background: var(--subtle); overflow: hidden; }
+  .bar i { display: block; height: 100%; background: var(--primary); border-radius: 4px; }
+  .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 13px; }
+  #toasts { position: fixed; left: 50%; bottom: var(--s4); transform: translateX(-50%); display: grid; gap: var(--s2); z-index: 60; width: max-content; max-width: calc(100vw - 32px); }
+  .toast { display: flex; align-items: center; gap: var(--s3); background: var(--fg); color: var(--bg); padding: 10px 10px 10px 18px; border-radius: var(--r-sm);
+           box-shadow: var(--shadow-lg); font-size: 15px; animation: rise var(--ease); }
+  .toast button { border: 0; background: none; color: inherit; font-weight: 700; min-height: 36px; padding: 0 12px; border-radius: 6px; cursor: pointer;
+                  color: color-mix(in srgb, var(--primary) 70%, var(--bg)); }
+  @keyframes rise { from { transform: translateY(8px); opacity: 0; } }
+  #uploads { position: fixed; right: var(--s3); bottom: var(--s3); width: min(400px, calc(100vw - 32px)); background: var(--surface); border: 1px solid var(--border);
+             border-radius: var(--r-md); box-shadow: var(--shadow-lg); z-index: 50; overflow: hidden; }
+  #uploads header { display: flex; align-items: center; gap: var(--s2); padding: 4px 4px 4px var(--s3); font-weight: 700; border-bottom: 1px solid var(--border); }
+  #uploads header span { flex: 1; }
+  #jobs { max-height: 40vh; overflow: auto; }
+  .job { display: grid; grid-template-columns: 24px 1fr; gap: 4px 12px; padding: 12px var(--s3); border-bottom: 1px solid var(--border); font-size: 14px; }
+  .job b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .job .msg { grid-column: 2; color: var(--muted); }
+  .job .bar { grid-column: 2; }
+  .job.ok .msg { color: var(--success); } .job.fail .msg { color: var(--destructive); }
+
+  @media (max-width: 1100px) { #details { position: fixed; right: 0; top: 0; bottom: 0; max-height: none; background: var(--surface); z-index: 40; box-shadow: var(--shadow-lg); width: min(360px, 100vw); } }
+  @media (max-width: 768px) {
+    #menuToggle { display: inline-flex; } .topbar .logo { min-width: 0; } .topbar .logo b { display: none; }
+    .layout { grid-template-columns: 1fr; padding: 0 var(--s2) var(--s2); }
+    aside { position: fixed; inset: 0 auto 0 0; width: 280px; background: var(--surface); z-index: 45; padding: var(--s3); transform: translateX(-100%);
+            transition: transform var(--ease); box-shadow: var(--shadow-lg); top: 0; }
+    aside.open { transform: none; }
+    .pane { padding: var(--s2) var(--s3) var(--s3); }
+    .hide-sm { display: none; }
+    .crumbs { font-size: 17px; }
+  }
 </style>
 </head>
 <body>
+<svg xmlns="http://www.w3.org/2000/svg" hidden aria-hidden="true">
+<!-- Phosphor Icons (MIT License, Copyright (c) 2023 Phosphor Icons) -->
+<symbol id="i-cloud" viewBox="0 0 256 256"><path d="M160,40A88.09,88.09,0,0,0,81.29,88.67,64,64,0,1,0,72,216h88a88,88,0,0,0,0-176Zm0,160H72a48,48,0,0,1,0-96c1.1,0,2.2,0,3.29.11A88,88,0,0,0,72,128a8,8,0,0,0,16,0,72,72,0,1,1,72,72Z"/></symbol>
+<symbol id="i-hard-drives" viewBox="0 0 256 256"><path d="M208,136H48a16,16,0,0,0-16,16v48a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V152A16,16,0,0,0,208,136Zm0,64H48V152H208v48Zm0-160H48A16,16,0,0,0,32,56v48a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V56A16,16,0,0,0,208,40Zm0,64H48V56H208v48ZM192,80a12,12,0,1,1-12-12A12,12,0,0,1,192,80Zm0,96a12,12,0,1,1-12-12A12,12,0,0,1,192,176Z"/></symbol>
+<symbol id="i-users" viewBox="0 0 256 256"><path d="M117.25,157.92a60,60,0,1,0-66.5,0A95.83,95.83,0,0,0,3.53,195.63a8,8,0,1,0,13.4,8.74,80,80,0,0,1,134.14,0,8,8,0,0,0,13.4-8.74A95.83,95.83,0,0,0,117.25,157.92ZM40,108a44,44,0,1,1,44,44A44.05,44.05,0,0,1,40,108Zm210.14,98.7a8,8,0,0,1-11.07-2.33A79.83,79.83,0,0,0,172,168a8,8,0,0,1,0-16,44,44,0,1,0-16.34-84.87,8,8,0,1,1-5.94-14.85,60,60,0,0,1,55.53,105.64,95.83,95.83,0,0,1,47.22,37.71A8,8,0,0,1,250.14,206.7Z"/></symbol>
+<symbol id="i-clock" viewBox="0 0 256 256"><path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm64-88a8,8,0,0,1-8,8H128a8,8,0,0,1-8-8V72a8,8,0,0,1,16,0v48h48A8,8,0,0,1,192,128Z"/></symbol>
+<symbol id="i-star" viewBox="0 0 256 256"><path d="M239.18,97.26A16.38,16.38,0,0,0,224.92,86l-59-4.76L143.14,26.15a16.36,16.36,0,0,0-30.27,0L90.11,81.23,31.08,86a16.46,16.46,0,0,0-9.37,28.86l45,38.83L53,211.75a16.38,16.38,0,0,0,24.5,17.82L128,198.49l50.53,31.08A16.4,16.4,0,0,0,203,211.75l-13.76-58.07,45-38.83A16.43,16.43,0,0,0,239.18,97.26Zm-15.34,5.47-48.7,42a8,8,0,0,0-2.56,7.91l14.88,62.8a.37.37,0,0,1-.17.48c-.18.14-.23.11-.38,0l-54.72-33.65a8,8,0,0,0-8.38,0L69.09,215.94c-.15.09-.19.12-.38,0a.37.37,0,0,1-.17-.48l14.88-62.8a8,8,0,0,0-2.56-7.91l-48.7-42c-.12-.1-.23-.19-.13-.5s.18-.27.33-.29l63.92-5.16A8,8,0,0,0,103,91.86l24.62-59.61c.08-.17.11-.25.35-.25s.27.08.35.25L153,91.86a8,8,0,0,0,6.75,4.92l63.92,5.16c.15,0,.24,0,.33.29S224,102.63,223.84,102.73Z"/></symbol>
+<symbol id="i-star-fill" viewBox="0 0 256 256"><path d="M234.29,114.85l-45,38.83L203,211.75a16.4,16.4,0,0,1-24.5,17.82L128,198.49,77.47,229.57A16.4,16.4,0,0,1,53,211.75l13.76-58.07-45-38.83A16.46,16.46,0,0,1,31.08,86l59-4.76,22.76-55.08a16.36,16.36,0,0,1,30.27,0l22.75,55.08,59,4.76a16.46,16.46,0,0,1,9.37,28.86Z"/></symbol>
+<symbol id="i-trash" viewBox="0 0 256 256"><path d="M216,48H176V40a24,24,0,0,0-24-24H104A24,24,0,0,0,80,40v8H40a8,8,0,0,0,0,16h8V208a16,16,0,0,0,16,16H192a16,16,0,0,0,16-16V64h8a8,8,0,0,0,0-16ZM96,40a8,8,0,0,1,8-8h48a8,8,0,0,1,8,8v8H96Zm96,168H64V64H192ZM112,104v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Zm48,0v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Z"/></symbol>
+<symbol id="i-chart-bar" viewBox="0 0 256 256"><path d="M224,200h-8V40a8,8,0,0,0-8-8H152a8,8,0,0,0-8,8V80H96a8,8,0,0,0-8,8v40H48a8,8,0,0,0-8,8v64H32a8,8,0,0,0,0,16H224a8,8,0,0,0,0-16ZM160,48h40V200H160ZM104,96h40V200H104ZM56,144H88v56H56Z"/></symbol>
+<symbol id="i-magnifying-glass" viewBox="0 0 256 256"><path d="M229.66,218.34l-50.07-50.06a88.11,88.11,0,1,0-11.31,11.31l50.06,50.07a8,8,0,0,0,11.32-11.32ZM40,112a72,72,0,1,1,72,72A72.08,72.08,0,0,1,40,112Z"/></symbol>
+<symbol id="i-dots-three-vertical" viewBox="0 0 256 256"><path d="M140,128a12,12,0,1,1-12-12A12,12,0,0,1,140,128ZM128,72a12,12,0,1,0-12-12A12,12,0,0,0,128,72Zm0,112a12,12,0,1,0,12,12A12,12,0,0,0,128,184Z"/></symbol>
+<symbol id="i-x" viewBox="0 0 256 256"><path d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"/></symbol>
+<symbol id="i-download-simple" viewBox="0 0 256 256"><path d="M224,144v64a8,8,0,0,1-8,8H40a8,8,0,0,1-8-8V144a8,8,0,0,1,16,0v56H208V144a8,8,0,0,1,16,0Zm-101.66,5.66a8,8,0,0,0,11.32,0l40-40a8,8,0,0,0-11.32-11.32L136,124.69V32a8,8,0,0,0-16,0v92.69L93.66,98.34a8,8,0,0,0-11.32,11.32Z"/></symbol>
+<symbol id="i-share-network" viewBox="0 0 256 256"><path d="M176,160a39.89,39.89,0,0,0-28.62,12.09l-46.1-29.63a39.8,39.8,0,0,0,0-28.92l46.1-29.63a40,40,0,1,0-8.66-13.45l-46.1,29.63a40,40,0,1,0,0,55.82l46.1,29.63A40,40,0,1,0,176,160Zm0-128a24,24,0,1,1-24,24A24,24,0,0,1,176,32ZM64,152a24,24,0,1,1,24-24A24,24,0,0,1,64,152Zm112,72a24,24,0,1,1,24-24A24,24,0,0,1,176,224Z"/></symbol>
+<symbol id="i-pencil-simple" viewBox="0 0 256 256"><path d="M227.31,73.37,182.63,28.68a16,16,0,0,0-22.63,0L36.69,152A15.86,15.86,0,0,0,32,163.31V208a16,16,0,0,0,16,16H92.69A15.86,15.86,0,0,0,104,219.31L227.31,96a16,16,0,0,0,0-22.63ZM92.69,208H48V163.31l88-88L180.69,120ZM192,108.68,147.31,64l24-24L216,84.68Z"/></symbol>
+<symbol id="i-arrow-bend-up-right" viewBox="0 0 256 256"><path d="M229.66,109.66l-48,48a8,8,0,0,1-11.32-11.32L204.69,112H128a88.1,88.1,0,0,0-88,88,8,8,0,0,1-16,0A104.11,104.11,0,0,1,128,96h76.69L170.34,61.66a8,8,0,0,1,11.32-11.32l48,48A8,8,0,0,1,229.66,109.66Z"/></symbol>
+<symbol id="i-copy" viewBox="0 0 256 256"><path d="M216,32H88a8,8,0,0,0-8,8V80H40a8,8,0,0,0-8,8V216a8,8,0,0,0,8,8H168a8,8,0,0,0,8-8V176h40a8,8,0,0,0,8-8V40A8,8,0,0,0,216,32ZM160,208H48V96H160Zm48-48H176V88a8,8,0,0,0-8-8H96V48H208Z"/></symbol>
+<symbol id="i-clock-counter-clockwise" viewBox="0 0 256 256"><path d="M136,80v43.47l36.12,21.67a8,8,0,0,1-8.24,13.72l-40-24A8,8,0,0,1,120,128V80a8,8,0,0,1,16,0Zm-8-48A95.44,95.44,0,0,0,60.08,60.15C52.81,67.51,46.35,74.59,40,82V64a8,8,0,0,0-16,0v40a8,8,0,0,0,8,8H72a8,8,0,0,0,0-16H49c7.15-8.42,14.27-16.35,22.39-24.57a80,80,0,1,1,1.66,114.75,8,8,0,1,0-11,11.64A96,96,0,1,0,128,32Z"/></symbol>
+<symbol id="i-pulse" viewBox="0 0 256 256"><path d="M240,128a8,8,0,0,1-8,8H204.94l-37.78,75.58A8,8,0,0,1,160,216h-.4a8,8,0,0,1-7.08-5.14L95.35,60.76,63.28,131.31A8,8,0,0,1,56,136H24a8,8,0,0,1,0-16H50.85L88.72,36.69a8,8,0,0,1,14.76.46l57.51,151,31.85-63.71A8,8,0,0,1,200,120h32A8,8,0,0,1,240,128Z"/></symbol>
+<symbol id="i-info" viewBox="0 0 256 256"><path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm16-40a8,8,0,0,1-8,8,16,16,0,0,1-16-16V128a8,8,0,0,1,0-16,16,16,0,0,1,16,16v40A8,8,0,0,1,144,176ZM112,84a12,12,0,1,1,12,12A12,12,0,0,1,112,84Z"/></symbol>
+<symbol id="i-list" viewBox="0 0 256 256"><path d="M224,128a8,8,0,0,1-8,8H40a8,8,0,0,1,0-16H216A8,8,0,0,1,224,128ZM40,72H216a8,8,0,0,0,0-16H40a8,8,0,0,0,0,16ZM216,184H40a8,8,0,0,0,0,16H216a8,8,0,0,0,0-16Z"/></symbol>
+<symbol id="i-squares-four" viewBox="0 0 256 256"><path d="M104,40H56A16,16,0,0,0,40,56v48a16,16,0,0,0,16,16h48a16,16,0,0,0,16-16V56A16,16,0,0,0,104,40Zm0,64H56V56h48v48Zm96-64H152a16,16,0,0,0-16,16v48a16,16,0,0,0,16,16h48a16,16,0,0,0,16-16V56A16,16,0,0,0,200,40Zm0,64H152V56h48v48Zm-96,32H56a16,16,0,0,0-16,16v48a16,16,0,0,0,16,16h48a16,16,0,0,0,16-16V152A16,16,0,0,0,104,136Zm0,64H56V152h48v48Zm96-64H152a16,16,0,0,0-16,16v48a16,16,0,0,0,16,16h48a16,16,0,0,0,16-16V152A16,16,0,0,0,200,136Zm0,64H152V152h48v48Z"/></symbol>
+<symbol id="i-sign-out" viewBox="0 0 256 256"><path d="M120,216a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V40a8,8,0,0,1,8-8h64a8,8,0,0,1,0,16H56V208h56A8,8,0,0,1,120,216Zm109.66-93.66-40-40a8,8,0,0,0-11.32,11.32L204.69,120H112a8,8,0,0,0,0,16h92.69l-26.35,26.34a8,8,0,0,0,11.32,11.32l40-40A8,8,0,0,0,229.66,122.34Z"/></symbol>
+<symbol id="i-check" viewBox="0 0 256 256"><path d="M229.66,77.66l-128,128a8,8,0,0,1-11.32,0l-56-56a8,8,0,0,1,11.32-11.32L96,188.69,218.34,66.34a8,8,0,0,1,11.32,11.32Z"/></symbol>
+<symbol id="i-arrow-counter-clockwise" viewBox="0 0 256 256"><path d="M224,128a96,96,0,0,1-94.71,96H128A95.38,95.38,0,0,1,62.1,197.8a8,8,0,0,1,11-11.63A80,80,0,1,0,71.43,71.39a3.07,3.07,0,0,1-.26.25L44.59,96H72a8,8,0,0,1,0,16H24a8,8,0,0,1-8-8V56a8,8,0,0,1,16,0V85.8L60.25,60A96,96,0,0,1,224,128Z"/></symbol>
+<symbol id="i-link" viewBox="0 0 256 256"><path d="M240,88.23a54.43,54.43,0,0,1-16,37L189.25,160a54.27,54.27,0,0,1-38.63,16h-.05A54.63,54.63,0,0,1,96,119.84a8,8,0,0,1,16,.45A38.62,38.62,0,0,0,150.58,160h0a38.39,38.39,0,0,0,27.31-11.31l34.75-34.75a38.63,38.63,0,0,0-54.63-54.63l-11,11A8,8,0,0,1,135.7,59l11-11A54.65,54.65,0,0,1,224,48,54.86,54.86,0,0,1,240,88.23ZM109,185.66l-11,11A38.41,38.41,0,0,1,70.6,208h0a38.63,38.63,0,0,1-27.29-65.94L78,107.31A38.63,38.63,0,0,1,144,135.71a8,8,0,0,0,16,.45A54.86,54.86,0,0,0,144,96a54.65,54.65,0,0,0-77.27,0L32,130.75A54.62,54.62,0,0,0,70.56,224h0a54.28,54.28,0,0,0,38.64-16l11-11A8,8,0,0,0,109,185.66Z"/></symbol>
+<symbol id="i-caret-right" viewBox="0 0 256 256"><path d="M181.66,133.66l-80,80a8,8,0,0,1-11.32-11.32L164.69,128,90.34,53.66a8,8,0,0,1,11.32-11.32l80,80A8,8,0,0,1,181.66,133.66Z"/></symbol>
+<symbol id="i-cube" viewBox="0 0 256 256"><path d="M223.68,66.15,135.68,18h0a15.88,15.88,0,0,0-15.36,0l-88,48.17a16,16,0,0,0-8.32,14v95.64a16,16,0,0,0,8.32,14l88,48.17a15.88,15.88,0,0,0,15.36,0l88-48.17a16,16,0,0,0,8.32-14V80.18A16,16,0,0,0,223.68,66.15ZM128,32h0l80.34,44L128,120,47.66,76ZM40,90l80,43.78v85.79L40,175.82Zm96,129.57V133.82L216,90v85.78Z"/></symbol>
+<symbol id="i-plus" viewBox="0 0 256 256"><path d="M224,128a8,8,0,0,1-8,8H136v80a8,8,0,0,1-16,0V136H40a8,8,0,0,1,0-16h80V40a8,8,0,0,1,16,0v80h80A8,8,0,0,1,224,128Z"/></symbol>
+<symbol id="i-folder" viewBox="0 0 256 256"><path d="M216,72H131.31L104,44.69A15.86,15.86,0,0,0,92.69,40H40A16,16,0,0,0,24,56V200.62A15.4,15.4,0,0,0,39.38,216H216.89A15.13,15.13,0,0,0,232,200.89V88A16,16,0,0,0,216,72ZM40,56H92.69l16,16H40ZM216,200H40V88H216Z"/></symbol>
+<symbol id="i-folder-plus" viewBox="0 0 256 256"><path d="M216,72H131.31L104,44.69A15.86,15.86,0,0,0,92.69,40H40A16,16,0,0,0,24,56V200.62A15.4,15.4,0,0,0,39.38,216H216.89A15.13,15.13,0,0,0,232,200.89V88A16,16,0,0,0,216,72ZM92.69,56l16,16H40V56ZM216,200H40V88H216Zm-88-88a8,8,0,0,1,8,8v16h16a8,8,0,0,1,0,16H136v16a8,8,0,0,1-16,0V152H104a8,8,0,0,1,0-16h16V120A8,8,0,0,1,128,112Z"/></symbol>
+<symbol id="i-folder-open" viewBox="0 0 256 256"><path d="M245,110.64A16,16,0,0,0,232,104H216V88a16,16,0,0,0-16-16H130.67L102.94,51.2a16.14,16.14,0,0,0-9.6-3.2H40A16,16,0,0,0,24,64V208h0a8,8,0,0,0,8,8H211.1a8,8,0,0,0,7.59-5.47l28.49-85.47A16.05,16.05,0,0,0,245,110.64ZM93.34,64,123.2,86.4A8,8,0,0,0,128,88h72v16H69.77a16,16,0,0,0-15.18,10.94L40,158.7V64Zm112,136H43.1l26.67-80H232Z"/></symbol>
+<symbol id="i-upload-simple" viewBox="0 0 256 256"><path d="M224,144v64a8,8,0,0,1-8,8H40a8,8,0,0,1-8-8V144a8,8,0,0,1,16,0v56H208V144a8,8,0,0,1,16,0ZM93.66,77.66,120,51.31V144a8,8,0,0,0,16,0V51.31l26.34,26.35a8,8,0,0,0,11.32-11.32l-40-40a8,8,0,0,0-11.32,0l-40,40A8,8,0,0,0,93.66,77.66Z"/></symbol>
+<symbol id="i-file" viewBox="0 0 256 256"><path d="M213.66,82.34l-56-56A8,8,0,0,0,152,24H56A16,16,0,0,0,40,40V216a16,16,0,0,0,16,16H200a16,16,0,0,0,16-16V88A8,8,0,0,0,213.66,82.34ZM160,51.31,188.69,80H160ZM200,216H56V40h88V88a8,8,0,0,0,8,8h48V216Z"/></symbol>
+<symbol id="i-file-image" viewBox="0 0 256 256"><path d="M110.66,147.56a8,8,0,0,0-13.32,0L76.49,178.85l-9.76-15.18a8,8,0,0,0-13.46,0l-36,56A8,8,0,0,0,24,232H152a8,8,0,0,0,6.66-12.44ZM38.65,216,60,182.79l9.63,15a8,8,0,0,0,13.39.11l21-31.47L137.05,216Zm175-133.66-56-56A8,8,0,0,0,152,24H56A16,16,0,0,0,40,40v88a8,8,0,0,0,16,0V40h88V88a8,8,0,0,0,8,8h48V216h-8a8,8,0,0,0,0,16h8a16,16,0,0,0,16-16V88A8,8,0,0,0,213.66,82.34ZM160,51.31,188.69,80H160Z"/></symbol>
+<symbol id="i-file-pdf" viewBox="0 0 256 256"><path d="M224,152a8,8,0,0,1-8,8H192v16h16a8,8,0,0,1,0,16H192v16a8,8,0,0,1-16,0V152a8,8,0,0,1,8-8h32A8,8,0,0,1,224,152ZM92,172a28,28,0,0,1-28,28H56v8a8,8,0,0,1-16,0V152a8,8,0,0,1,8-8H64A28,28,0,0,1,92,172Zm-16,0a12,12,0,0,0-12-12H56v24h8A12,12,0,0,0,76,172Zm88,8a36,36,0,0,1-36,36H112a8,8,0,0,1-8-8V152a8,8,0,0,1,8-8h16A36,36,0,0,1,164,180Zm-16,0a20,20,0,0,0-20-20h-8v40h8A20,20,0,0,0,148,180ZM40,112V40A16,16,0,0,1,56,24h96a8,8,0,0,1,5.66,2.34l56,56A8,8,0,0,1,216,88v24a8,8,0,0,1-16,0V96H152a8,8,0,0,1-8-8V40H56v72a8,8,0,0,1-16,0ZM160,80h28.69L160,51.31Z"/></symbol>
+<symbol id="i-file-audio" viewBox="0 0 256 256"><path d="M99.06,128.61a8,8,0,0,0-8.72,1.73L68.69,152H48a8,8,0,0,0-8,8v40a8,8,0,0,0,8,8H68.69l21.65,21.66A8,8,0,0,0,104,224V136A8,8,0,0,0,99.06,128.61ZM88,204.69,77.66,194.34A8,8,0,0,0,72,192H56V168H72a8,8,0,0,0,5.66-2.34L88,155.31ZM152,180a40.55,40.55,0,0,1-20,34.91A8,8,0,0,1,124,201.09a24.49,24.49,0,0,0,0-42.18A8,8,0,0,1,132,145.09,40.55,40.55,0,0,1,152,180Zm61.66-97.66-56-56A8,8,0,0,0,152,24H56A16,16,0,0,0,40,40v80a8,8,0,0,0,16,0V40h88V88a8,8,0,0,0,8,8h48V216H168a8,8,0,0,0,0,16h32a16,16,0,0,0,16-16V88A8,8,0,0,0,213.66,82.34ZM160,51.31,188.69,80H160Z"/></symbol>
+<symbol id="i-file-video" viewBox="0 0 256 256"><path d="M213.66,82.34l-56-56A8,8,0,0,0,152,24H56A16,16,0,0,0,40,40v72a8,8,0,0,0,16,0V40h88V88a8,8,0,0,0,8,8h48V216h-8a8,8,0,0,0,0,16h8a16,16,0,0,0,16-16V88A8,8,0,0,0,213.66,82.34ZM160,51.31,188.69,80H160ZM155.88,145a8,8,0,0,0-8.12.22l-19.95,12.46A16,16,0,0,0,112,144H48a16,16,0,0,0-16,16v48a16,16,0,0,0,16,16h64a16,16,0,0,0,15.81-13.68l19.95,12.46A8,8,0,0,0,160,216V152A8,8,0,0,0,155.88,145ZM112,208H48V160h64v48Zm32-6.43-16-10V176.43l16-10Z"/></symbol>
+<symbol id="i-file-zip" viewBox="0 0 256 256"><path d="M184,144H168a8,8,0,0,0-8,8v56a8,8,0,0,0,16,0v-8h8a28,28,0,0,0,0-56Zm0,40h-8V160h8a12,12,0,0,1,0,24Zm-48-32v56a8,8,0,0,1-16,0V152a8,8,0,0,1,16,0ZM96,208a8,8,0,0,1-8,8H56a8,8,0,0,1-7-12l25.16-44H56a8,8,0,0,1,0-16H88a8,8,0,0,1,7,12L69.79,200H88A8,8,0,0,1,96,208ZM213.66,82.34l-56-56A8,8,0,0,0,152,24H56A16,16,0,0,0,40,40v72a8,8,0,0,0,16,0V40h88V88a8,8,0,0,0,8,8h48v16a8,8,0,0,0,16,0V88A8,8,0,0,0,213.66,82.34ZM160,80V51.31L188.69,80Z"/></symbol>
+<symbol id="i-file-text" viewBox="0 0 256 256"><path d="M213.66,82.34l-56-56A8,8,0,0,0,152,24H56A16,16,0,0,0,40,40V216a16,16,0,0,0,16,16H200a16,16,0,0,0,16-16V88A8,8,0,0,0,213.66,82.34ZM160,51.31,188.69,80H160ZM200,216H56V40h88V88a8,8,0,0,0,8,8h48V216Zm-32-80a8,8,0,0,1-8,8H96a8,8,0,0,1,0-16h64A8,8,0,0,1,168,136Zm0,32a8,8,0,0,1-8,8H96a8,8,0,0,1,0-16h64A8,8,0,0,1,168,168Z"/></symbol>
+<symbol id="i-file-code" viewBox="0 0 256 256"><path d="M181.66,146.34a8,8,0,0,1,0,11.32l-24,24a8,8,0,0,1-11.32-11.32L164.69,152l-18.35-18.34a8,8,0,0,1,11.32-11.32Zm-72-24a8,8,0,0,0-11.32,0l-24,24a8,8,0,0,0,0,11.32l24,24a8,8,0,0,0,11.32-11.32L91.31,152l18.35-18.34A8,8,0,0,0,109.66,122.34ZM216,88V216a16,16,0,0,1-16,16H56a16,16,0,0,1-16-16V40A16,16,0,0,1,56,24h96a8,8,0,0,1,5.66,2.34l56,56A8,8,0,0,1,216,88Zm-56-8h28.69L160,51.31Zm40,136V96H152a8,8,0,0,1-8-8V40H56V216H200Z"/></symbol>
+<symbol id="i-file-doc" viewBox="0 0 256 256"><path d="M52,144H36a8,8,0,0,0-8,8v56a8,8,0,0,0,8,8H52a36,36,0,0,0,0-72Zm0,56H44V160h8a20,20,0,0,1,0,40Zm169.53-4.91a8,8,0,0,1,.25,11.31A30.06,30.06,0,0,1,200,216c-17.65,0-32-16.15-32-36s14.35-36,32-36a30.06,30.06,0,0,1,21.78,9.6,8,8,0,0,1-11.56,11.06A14.24,14.24,0,0,0,200,160c-8.82,0-16,9-16,20s7.18,20,16,20a14.24,14.24,0,0,0,10.22-4.66A8,8,0,0,1,221.53,195.09ZM128,144c-17.65,0-32,16.15-32,36s14.35,36,32,36,32-16.15,32-36S145.65,144,128,144Zm0,56c-8.82,0-16-9-16-20s7.18-20,16-20,16,9,16,20S136.82,200,128,200ZM48,120a8,8,0,0,0,8-8V40h88V88a8,8,0,0,0,8,8h48v16a8,8,0,0,0,16,0V88a8,8,0,0,0-2.34-5.66l-56-56A8,8,0,0,0,152,24H56A16,16,0,0,0,40,40v72A8,8,0,0,0,48,120ZM160,51.31,188.69,80H160Z"/></symbol>
+<symbol id="i-file-xls" viewBox="0 0 256 256"><path d="M156,208a8,8,0,0,1-8,8H120a8,8,0,0,1-8-8V152a8,8,0,0,1,16,0v48h20A8,8,0,0,1,156,208ZM92.65,145.49a8,8,0,0,0-11.16,1.86L68,166.24,54.51,147.35a8,8,0,1,0-13,9.3L58.17,180,41.49,203.35a8,8,0,0,0,13,9.3L68,193.76l13.49,18.89a8,8,0,0,0,13-9.3L77.83,180l16.68-23.35A8,8,0,0,0,92.65,145.49Zm98.94,25.82c-4-1.16-8.14-2.35-10.45-3.84-1.25-.82-1.23-1-1.12-1.9a4.54,4.54,0,0,1,2-3.67c4.6-3.12,15.34-1.72,19.82-.56a8,8,0,0,0,4.07-15.48c-2.11-.55-21-5.22-32.83,2.76a20.58,20.58,0,0,0-8.95,14.95c-2,15.88,13.65,20.41,23,23.11,12.06,3.49,13.12,4.92,12.78,7.59-.31,2.41-1.26,3.33-2.15,3.93-4.6,3.06-15.16,1.55-19.54.35A8,8,0,0,0,173.93,214a60.63,60.63,0,0,0,15.19,2c5.82,0,12.3-1,17.49-4.46a20.81,20.81,0,0,0,9.18-15.23C218,179,201.48,174.17,191.59,171.31ZM40,112V40A16,16,0,0,1,56,24h96a8,8,0,0,1,5.66,2.34l56,56A8,8,0,0,1,216,88v24a8,8,0,1,1-16,0V96H152a8,8,0,0,1-8-8V40H56v72a8,8,0,0,1-16,0ZM160,80h28.68L160,51.31Z"/></symbol>
+<symbol id="i-file-ppt" viewBox="0 0 256 256"><path d="M224,152a8,8,0,0,1-8,8H204v48a8,8,0,0,1-16,0V160H176a8,8,0,0,1,0-16h40A8,8,0,0,1,224,152ZM92,172a28,28,0,0,1-28,28H56v8a8,8,0,0,1-16,0V152a8,8,0,0,1,8-8H64A28,28,0,0,1,92,172Zm-16,0a12,12,0,0,0-12-12H56v24h8A12,12,0,0,0,76,172Zm84,0a28,28,0,0,1-28,28h-8v8a8,8,0,0,1-16,0V152a8,8,0,0,1,8-8h16A28,28,0,0,1,160,172Zm-16,0a12,12,0,0,0-12-12h-8v24h8A12,12,0,0,0,144,172ZM40,112V40A16,16,0,0,1,56,24h96a8,8,0,0,1,5.66,2.34l56,56A8,8,0,0,1,216,88v24a8,8,0,0,1-16,0V96H152a8,8,0,0,1-8-8V40H56v72a8,8,0,0,1-16,0ZM160,80h28.69L160,51.31Z"/></symbol>
+<symbol id="i-eye" viewBox="0 0 256 256"><path d="M247.31,124.76c-.35-.79-8.82-19.58-27.65-38.41C194.57,61.26,162.88,48,128,48S61.43,61.26,36.34,86.35C17.51,105.18,9,124,8.69,124.76a8,8,0,0,0,0,6.5c.35.79,8.82,19.57,27.65,38.4C61.43,194.74,93.12,208,128,208s66.57-13.26,91.66-38.34c18.83-18.83,27.3-37.61,27.65-38.4A8,8,0,0,0,247.31,124.76ZM128,192c-30.78,0-57.67-11.19-79.93-33.25A133.47,133.47,0,0,1,25,128,133.33,133.33,0,0,1,48.07,97.25C70.33,75.19,97.22,64,128,64s57.67,11.19,79.93,33.25A133.46,133.46,0,0,1,231.05,128C223.84,141.46,192.43,192,128,192Zm0-112a48,48,0,1,0,48,48A48.05,48.05,0,0,0,128,80Zm0,80a32,32,0,1,1,32-32A32,32,0,0,1,128,160Z"/></symbol>
+<symbol id="i-warning" viewBox="0 0 256 256"><path d="M236.8,188.09,149.35,36.22h0a24.76,24.76,0,0,0-42.7,0L19.2,188.09a23.51,23.51,0,0,0,0,23.72A24.35,24.35,0,0,0,40.55,224h174.9a24.35,24.35,0,0,0,21.33-12.19A23.51,23.51,0,0,0,236.8,188.09ZM222.93,203.8a8.5,8.5,0,0,1-7.48,4.2H40.55a8.5,8.5,0,0,1-7.48-4.2,7.59,7.59,0,0,1,0-7.72L120.52,44.21a8.75,8.75,0,0,1,15,0l87.45,151.87A7.59,7.59,0,0,1,222.93,203.8ZM120,144V104a8,8,0,0,1,16,0v40a8,8,0,0,1-16,0Zm20,36a12,12,0,1,1-12-12A12,12,0,0,1,140,180Z"/></symbol>
+<symbol id="i-sort-ascending" viewBox="0 0 256 256"><path d="M128,128a8,8,0,0,1-8,8H48a8,8,0,0,1,0-16h72A8,8,0,0,1,128,128ZM48,72H184a8,8,0,0,0,0-16H48a8,8,0,0,0,0,16Zm56,112H48a8,8,0,0,0,0,16h56a8,8,0,0,0,0-16Zm125.66-21.66a8,8,0,0,0-11.32,0L192,188.69V112a8,8,0,0,0-16,0v76.69l-26.34-26.35a8,8,0,0,0-11.32,11.32l40,40a8,8,0,0,0,11.32,0l40-40A8,8,0,0,0,229.66,162.34Z"/></symbol>
+<symbol id="i-lock-simple" viewBox="0 0 256 256"><path d="M208,80H176V56a48,48,0,0,0-96,0V80H48A16,16,0,0,0,32,96V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V96A16,16,0,0,0,208,80ZM96,56a32,32,0,0,1,64,0V80H96ZM208,208H48V96H208V208Z"/></symbol>
+<symbol id="i-user-circle" viewBox="0 0 256 256"><path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24ZM74.08,197.5a64,64,0,0,1,107.84,0,87.83,87.83,0,0,1-107.84,0ZM96,120a32,32,0,1,1,32,32A32,32,0,0,1,96,120Zm97.76,66.41a79.66,79.66,0,0,0-36.06-28.75,48,48,0,1,0-59.4,0,79.66,79.66,0,0,0-36.06,28.75,88,88,0,1,1,131.52,0Z"/></symbol>
+<symbol id="i-sparkle" viewBox="0 0 256 256"><path d="M197.58,129.06,146,110l-19-51.62a15.92,15.92,0,0,0-29.88,0L78,110l-51.62,19a15.92,15.92,0,0,0,0,29.88L78,178l19,51.62a15.92,15.92,0,0,0,29.88,0L146,178l51.62-19a15.92,15.92,0,0,0,0-29.88ZM137,164.22a8,8,0,0,0-4.74,4.74L112,223.85,91.78,169A8,8,0,0,0,87,164.22L32.15,144,87,123.78A8,8,0,0,0,91.78,119L112,64.15,132.22,119a8,8,0,0,0,4.74,4.74L191.85,144ZM144,40a8,8,0,0,1,8-8h16V16a8,8,0,0,1,16,0V32h16a8,8,0,0,1,0,16H184V64a8,8,0,0,1-16,0V48H152A8,8,0,0,1,144,40ZM248,88a8,8,0,0,1-8,8h-8v8a8,8,0,0,1-16,0V96h-8a8,8,0,0,1,0-16h8V72a8,8,0,0,1,16,0v8h8A8,8,0,0,1,248,88Z"/></symbol>
+<symbol id="i-lightning" viewBox="0 0 256 256"><path d="M215.79,118.17a8,8,0,0,0-5-5.66L153.18,90.9l14.66-73.33a8,8,0,0,0-13.69-7l-112,120a8,8,0,0,0,3,13l57.63,21.61L88.16,238.43a8,8,0,0,0,13.69,7l112-120A8,8,0,0,0,215.79,118.17ZM109.37,214l10.47-52.38a8,8,0,0,0-5-9.06L62,132.71l84.62-90.66L136.16,94.43a8,8,0,0,0,5,9.06l52.8,19.8Z"/></symbol>
+<symbol id="i-shield-check" viewBox="0 0 256 256"><path d="M208,40H48A16,16,0,0,0,32,56v56c0,52.72,25.52,84.67,46.93,102.19,23.06,18.86,46,25.26,47,25.53a8,8,0,0,0,4.2,0c1-.27,23.91-6.67,47-25.53C198.48,196.67,224,164.72,224,112V56A16,16,0,0,0,208,40Zm0,72c0,37.07-13.66,67.16-40.6,89.42A129.3,129.3,0,0,1,128,223.62a128.25,128.25,0,0,1-38.92-21.81C61.82,179.51,48,149.3,48,112l0-56,160,0ZM82.34,141.66a8,8,0,0,1,11.32-11.32L112,148.69l50.34-50.35a8,8,0,0,1,11.32,11.32l-56,56a8,8,0,0,1-11.32,0Z"/></symbol>
+</svg>
+
 <section id="login" hidden>
-  <form>
-    <h1>CloudSync Drive</h1>
-    <div class="muted" id="loginHint">Sign in to continue</div>
-    <input type="text" name="user" placeholder="Username" autocomplete="username" required>
-    <input type="password" name="pass" placeholder="Password (8+ characters)" autocomplete="current-password" required>
-    <div class="bad" id="loginError"></div>
-    <div class="row"><button class="primary" name="mode" value="login">Sign in</button><button name="mode" value="register">Create account</button></div>
-  </form>
+  <div class="brand">
+    <div class="logo"><svg class="ic" aria-hidden="true"><use href="#i-cloud"/></svg>CloudSync Drive</div>
+    <h1>Every file, everywhere.<br>Stored once.</h1>
+    <ul>
+      <li><svg class="ic" aria-hidden="true"><use href="#i-lightning"/></svg><div><b>Uploads only what changed</b><p>Files are split into chunks; identical chunks are never stored or sent twice.</p></div></li>
+      <li><svg class="ic" aria-hidden="true"><use href="#i-clock-counter-clockwise"/></svg><div><b>Version history and trash</b><p>Every re-upload keeps the old version. Deleted items wait 30 days in Trash.</p></div></li>
+      <li><svg class="ic" aria-hidden="true"><use href="#i-shield-check"/></svg><div><b>Verified and private</b><p>Every chunk is checked with SHA-256 on the way out. Share with people or a link.</p></div></li>
+    </ul>
+  </div>
+  <div class="auth">
+    <form novalidate>
+      <h2 id="authTitle">Welcome back</h2>
+      <div class="tabs" role="tablist" aria-label="Account">
+        <button type="button" role="tab" aria-selected="true" data-mode="login">Sign in</button>
+        <button type="button" role="tab" aria-selected="false" data-mode="register">Create account</button>
+      </div>
+      <label class="field">Username <input class="input" name="user" autocomplete="username" required minlength="3"></label>
+      <label class="field">Password <input class="input" name="pass" type="password" autocomplete="current-password" required minlength="8">
+        <span class="muted small" id="passHelp">At least 8 characters.</span></label>
+      <p class="error" id="loginError" role="alert"></p>
+      <button class="btn primary" id="authSubmit">Sign in</button>
+    </form>
+  </div>
 </section>
 
 <div id="app" hidden>
-  <header>
-    <div class="logo"><svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><path fill="var(--accent)" d="M6.5 19a4.5 4.5 0 0 1-.6-8.96A6 6 0 0 1 17.6 8.6 4.5 4.5 0 0 1 17.5 19z"/></svg>CloudSync</div>
-    <input type="search" id="search" placeholder="Search in Drive" aria-label="Search">
-    <div class="me" id="publicBadge" hidden><span class="muted">Shared link</span></div>
-    <div class="me" id="meBox"><span id="meName"></span><button id="logout">Sign out</button></div>
+  <header class="topbar">
+    <button class="btn icon-btn" id="menuToggle" aria-label="Open navigation"><svg class="ic"><use href="#i-list"/></svg></button>
+    <div class="logo"><svg class="ic" aria-hidden="true" style="color:var(--primary)"><use href="#i-cloud"/></svg><b>CloudSync</b></div>
+    <form class="search" role="search" id="searchForm">
+      <svg class="ic" aria-hidden="true"><use href="#i-magnifying-glass"/></svg>
+      <label class="sr" for="search">Search in Drive</label>
+      <input id="search" type="search" placeholder="Search in Drive" title="Search (press /)" autocomplete="off">
+    </form>
+    <div class="me" id="meBox">
+      <span class="avatar" id="avatar" aria-hidden="true"></span>
+      <span class="hide-sm" id="meName"></span>
+      <button class="btn icon-btn" id="logout" aria-label="Sign out" title="Sign out"><svg class="ic"><use href="#i-sign-out"/></svg></button>
+    </div>
+    <div class="me" id="publicBadge" hidden><span class="muted"><svg class="ic" aria-hidden="true" style="vertical-align:-4px"><use href="#i-link"/></svg> Shared with you by link</span></div>
   </header>
   <div class="layout">
-    <aside id="side">
-      <button class="new" id="newBtn">＋ New</button>
-      <a href="#/folder/root" data-nav="folder">My Drive</a>
-      <a href="#/shared" data-nav="shared">Shared with me</a>
-      <a href="#/perf" data-nav="perf">Performance</a>
-      <div class="box">
-        <label class="muted" for="mode">Upload mode</label>
-        <select id="mode"><option value="stream">Stream to server</option><option value="delta">Delta sync (browser chunks)</option></select>
-        <p class="muted" id="storage"></p>
+    <aside id="side" aria-label="Navigation">
+      <button class="btn primary new-btn" id="newBtn" aria-haspopup="menu"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg>New</button>
+      <nav class="side">
+        <a href="#/folder/root" data-nav="folder"><svg class="ic" aria-hidden="true"><use href="#i-hard-drives"/></svg>My Drive</a>
+        <a href="#/shared" data-nav="shared"><svg class="ic" aria-hidden="true"><use href="#i-users"/></svg>Shared with me</a>
+        <a href="#/recent" data-nav="recent"><svg class="ic" aria-hidden="true"><use href="#i-clock"/></svg>Recent</a>
+        <a href="#/starred" data-nav="starred"><svg class="ic" aria-hidden="true"><use href="#i-star"/></svg>Starred</a>
+        <a href="#/trash" data-nav="trash"><svg class="ic" aria-hidden="true"><use href="#i-trash"/></svg>Trash</a>
+        <a href="#/perf" data-nav="perf"><svg class="ic" aria-hidden="true"><use href="#i-chart-bar"/></svg>Performance</a>
+      </nav>
+      <div class="storage" id="storage"></div>
+      <div class="mode">
+        <label for="mode">Upload mode</label>
+        <select class="input" id="mode"><option value="stream" title="Server splits the file into content-defined chunks">Resumable</option><option value="delta" title="Browser hashes 4 MB blocks and sends only the missing ones">Delta sync</option></select>
       </div>
     </aside>
-    <main id="main" aria-live="polite"></main>
+    <main>
+      <section class="pane" id="pane" aria-live="polite">
+        <div class="toolbar">
+          <nav class="crumbs" id="crumbs" aria-label="Breadcrumbs"></nav>
+          <div class="tools" id="tools">
+            <label class="sr" for="sort">Sort by</label>
+            <select class="input" id="sort"><option value="name">Name</option><option value="date">Last modified</option><option value="size">Size</option></select>
+            <button class="btn icon-btn" id="viewList" aria-label="List view" aria-pressed="true"><svg class="ic"><use href="#i-list"/></svg></button>
+            <button class="btn icon-btn" id="viewGrid" aria-label="Grid view" aria-pressed="false"><svg class="ic"><use href="#i-squares-four"/></svg></button>
+          </div>
+        </div>
+        <div id="content"></div>
+      </section>
+      <section id="details" hidden aria-label="Details"></section>
+    </main>
   </div>
 </div>
 
 <input type="file" id="pickFiles" multiple hidden>
 <input type="file" id="pickFolder" webkitdirectory multiple hidden>
-<div id="menu" popover></div>
+<div id="menu" popover role="menu"></div>
 <dialog id="dlg"></dialog>
-<div id="uploads" hidden><h3><span>Uploads</span><button class="icon" id="closeUploads" aria-label="Close">×</button></h3><div id="jobs"></div></div>
-<div id="toast" role="status"></div>
+<section id="uploads" hidden aria-label="Uploads"><header><span id="upTitle">Uploads</span>
+  <button class="btn icon-btn" id="closeUploads" aria-label="Close uploads"><svg class="ic"><use href="#i-x"/></svg></button></header><div id="jobs"></div></section>
+<div id="toasts" role="status" aria-live="polite"></div>
 
 <script>
-const CHUNK = 4 * 1024 * 1024;
+const SLICE = 8 * 1024 * 1024, CHUNK = 4 * 1024 * 1024;
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const ic = (n, cls = 'ic') => `<svg class="${cls}" aria-hidden="true"><use href="#i-${n}"/></svg>`;
 const hex = buf => [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
 const fmt = n => { if (n == null) return '—'; if (n < 1024) return n + ' B'; const u = ['KB', 'MB', 'GB', 'TB']; let i = -1; do { n /= 1024; i++; } while (n >= 1024 && i < 3); return n.toFixed(n >= 100 ? 0 : 1) + ' ' + u[i]; };
-const when = d => d ? new Date(d).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : '';
-const PREVIEW = /\.(png|jpe?g|gif|webp|bmp|avif|ico|pdf)$/i;
-const KINDS = [[/\.(png|jpe?g|gif|webp|bmp|svg|avif|ico|heic)$/i, '#188038', 'IMG'], [/\.pdf$/i, '#d93025', 'PDF'], [/\.(mp3|wav|flac|ogg|m4a|aac)$/i, '#9334e6', 'AUD'],
-  [/\.(mp4|mkv|mov|webm|avi)$/i, '#e8710a', 'VID'], [/\.(zip|rar|7z|tar|gz|iso)$/i, '#795548', 'ZIP'], [/\.(docx?|txt|md|rtf|odt)$/i, '#1a73e8', 'DOC'],
-  [/\.(xlsx?|csv|ods)$/i, '#188038', 'XLS'], [/\.(pptx?|odp)$/i, '#f9ab00', 'PPT'], [/\.(js|ts|cs|py|java|c|cpp|go|rs|json|html|css|xml|sh)$/i, '#5f6368', 'CODE']];
-const FOLDER_ICON = '<svg class="badge" viewBox="0 0 24 24" style="width:28px;height:24px" aria-hidden="true"><path fill="var(--folder)" d="M10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-8z"/></svg>';
-const icon = (type, name) => type === 'folder' ? FOLDER_ICON
-  : (([, c, t] = KINDS.find(([re]) => re.test(name)) || [, '#80868b', (name.split('.').pop() || 'FILE').slice(0, 4).toUpperCase()]) => `<span class="badge" style="background:${c}">${esc(t)}</span>`)();
-let me = null, view = {}, lastUpload = null;
+const when = d => { if (!d) return ''; const t = new Date(d), s = (Date.now() - t) / 1000;
+  return s < 60 ? 'Just now' : s < 3600 ? `${Math.floor(s / 60)} min ago` : s < 86400 ? `${Math.floor(s / 3600)} h ago` : t.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }); };
+const store = { get: k => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch {} } };
+const PREVIEW = /\.(png|jpe?g|gif|webp|bmp|avif|ico|pdf|mp3|wav|ogg|oga|m4a|aac|flac|mp4|m4v|webm|mov)$/i;
+const IMAGE = /\.(png|jpe?g|gif|webp|bmp|avif|ico)$/i, AUDIO = /\.(mp3|wav|ogg|oga|m4a|aac|flac)$/i, VIDEO = /\.(mp4|m4v|webm|mov)$/i;
+const KINDS = [[IMAGE, 'file-image', '#15803D'], [/\.pdf$/i, 'file-pdf', '#DC2626'], [AUDIO, 'file-audio', '#7C3AED'], [VIDEO, 'file-video', '#EA580C'],
+  [/\.(zip|rar|7z|tar|gz|iso)$/i, 'file-zip', '#78716C'], [/\.(docx?|rtf|odt)$/i, 'file-doc', '#2563EB'], [/\.(xlsx?|csv|ods)$/i, 'file-xls', '#15803D'],
+  [/\.(pptx?|odp)$/i, 'file-ppt', '#C2410C'], [/\.(js|ts|cs|py|java|c|cpp|go|rs|json|html|css|xml|sh|sql)$/i, 'file-code', 'var(--muted)'], [/\.(txt|md|log)$/i, 'file-text', 'var(--muted)']];
+const kindIcon = it => { if (it.type === 'folder') return `<svg class="kind" aria-hidden="true" style="color:var(--folder)"><use href="#i-folder"/></svg>`;
+  const [, n, c] = KINDS.find(([re]) => re.test(it.name)) || [, 'file', 'var(--muted)']; return `<svg class="kind" aria-hidden="true" style="color:${c}"><use href="#i-${n}"/></svg>`; };
 
-function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), 3500); }
+let me = null, view = { items: [] }, stars = new Set(), lastUpload = null;
+const prefs = { sort: store.get('sort') || 'name', layout: store.get('layout') || 'list' };
+
+// ---------- feedback ----------
+function toast(msg, action) {
+  const t = document.createElement('div'); t.className = 'toast';
+  t.innerHTML = `<span>${esc(msg)}</span>${action ? `<button>${esc(action[0])}</button>` : ''}`;
+  if (action) t.querySelector('button').onclick = () => { t.remove(); action[1](); };
+  $('#toasts').append(t); while ($('#toasts').children.length > 3) $('#toasts').firstChild.remove(); setTimeout(() => t.remove(), action ? 6000 : 3500);
+}
 
 async function api(path, opts = {}) {
-  const r = await fetch(path, { ...opts, headers: typeof opts.body === 'string' ? { 'Content-Type': 'application/json' } : {} });
+  const r = await fetch(path, { ...opts, headers: { ...(typeof opts.body === 'string' ? { 'Content-Type': 'application/json' } : {}), ...(opts.headers || {}) } });
   if (r.status === 401 && !path.startsWith('/api/auth/') && !path.startsWith('/api/public/')) { me = null; showLogin(); throw new Error('Please sign in.'); }
-  if (!r.ok) { let m = r.status === 403 ? "You don't have permission to do that." : r.status === 404 ? 'Not found.' : `Error ${r.status}`;
-    try { m = (await r.json()).error || m; } catch {} throw new Error(m); }
+  if (!r.ok && r.status !== 308) { let m = r.status === 403 ? "You don't have permission to do that." : r.status === 404 ? 'That item no longer exists.' : r.status === 409 ? 'An item with that name already exists here.' : `Something went wrong (${r.status}).`;
+    try { m = (await r.json()).error || m; } catch {} const e = new Error(m); e.status = r.status; throw e; }
   return (r.headers.get('content-type') || '').includes('json') ? r.json() : null;
 }
 const send = (path, body, method = 'POST') => api(path, { method, body: JSON.stringify(body) });
 
+// ---------- dialogs (styled replacements for prompt/confirm) ----------
+function dialog(html, cls = '') {
+  const d = $('#dlg'); d.className = cls;
+  d.innerHTML = `<button class="btn icon-btn x" aria-label="Close" data-close>${ic('x')}</button>${html}`;
+  d.onclick = e => { if (e.target.closest('[data-close]') || e.target === d) d.close(); };
+  if (!d.open) d.showModal();
+  return d;
+}
+function ask(title, label, value = '', okText = 'Save') {
+  return new Promise(done => {
+    const d = dialog(`<h2>${esc(title)}</h2><form method="dialog"><label class="field">${esc(label)}<input class="input" name="v" value="${esc(value)}" required></label>
+      <div class="actions"><button class="btn" type="button" data-close>Cancel</button><button class="btn primary">${esc(okText)}</button></div></form>`);
+    const input = d.querySelector('input'); input.focus(); input.setSelectionRange(0, value.lastIndexOf('.') > 0 ? value.lastIndexOf('.') : value.length);
+    d.querySelector('form').onsubmit = e => { e.preventDefault(); const v = input.value.trim(); d.close(); done(v || null); };
+    d.addEventListener('close', () => done(null), { once: true });
+  });
+}
+function confirmAction(title, text, okText) {
+  return new Promise(done => {
+    const d = dialog(`<h2>${esc(title)}</h2><p class="muted">${esc(text)}</p>
+      <div class="actions"><button class="btn" data-close>Cancel</button><button class="btn danger" id="ok">${esc(okText)}</button></div>`);
+    d.querySelector('#ok').onclick = () => { d.close(); done(true); };
+    d.addEventListener('close', () => done(false), { once: true });
+    d.querySelector('#ok').focus();
+  });
+}
+
 // ---------- auth ----------
-function showLogin() { $('#app').hidden = true; $('#login').hidden = false; $('#login [name=user]').focus(); }
+let authMode = 'login';
+function showLogin() { $('#app').hidden = true; $('#login').hidden = false; setTimeout(() => $('#login [name=user]').focus()); }
+document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
+  authMode = b.dataset.mode;
+  document.querySelectorAll('.tabs button').forEach(x => x.setAttribute('aria-selected', x === b));
+  $('#authTitle').textContent = authMode === 'login' ? 'Welcome back' : 'Create your account';
+  $('#authSubmit').textContent = authMode === 'login' ? 'Sign in' : 'Create account';
+  $('#login [name=pass]').autocomplete = authMode === 'login' ? 'current-password' : 'new-password';
+  $('#loginError').textContent = '';
+});
 $('#login form').addEventListener('submit', async e => {
   e.preventDefault();
-  const f = e.target, mode = e.submitter?.value || 'login';
-  $('#loginError').textContent = '';
-  try {
-    me = (await send(`/api/auth/${mode}`, { userName: f.user.value, password: f.pass.value })).userName;
-    f.pass.value = ''; route();
-  } catch (err) { $('#loginError').textContent = mode === 'login' && err.message.startsWith('Error 401') ? 'Wrong username or password.' : err.message; }
+  const f = e.target, err = $('#loginError');
+  if (f.user.value.trim().length < 3) return (err.textContent = 'Username must be at least 3 characters.', f.user.focus());
+  if (f.pass.value.length < 8) return (err.textContent = 'Password must be at least 8 characters.', f.pass.focus());
+  $('#authSubmit').disabled = true; err.textContent = '';
+  try { me = (await send(`/api/auth/${authMode}`, { userName: f.user.value, password: f.pass.value })).userName; f.pass.value = ''; route(); }
+  catch (x) { err.textContent = authMode === 'login' && x.status === 401 ? 'Wrong username or password.' : x.message; }
+  finally { $('#authSubmit').disabled = false; }
 });
 $('#logout').onclick = async () => { await api('/api/auth/logout', { method: 'POST' }); me = null; location.hash = ''; showLogin(); };
 
 // ---------- routing ----------
+const VIEWS = { shared: 'Shared with me', recent: 'Recent', starred: 'Starred', trash: 'Trash' };
 async function route() {
-  const [, kind, a, b] = (location.hash.slice(1) || '/folder/root').split('/');
-  $('#menu').hidePopover?.(); $('#dlg').close();
+  const [, kind = 'folder', a, b] = (location.hash.slice(1) || '/folder/root').split('/');
+  $('#menu').hidePopover?.(); if ($('#dlg').open) $('#dlg').close(); $('#side').classList.remove('open'); closeDetails();
   if (kind === 's') return showPublic(a, b);
   if (!me) { try { me = (await api('/api/auth/me')).userName; } catch { return showLogin(); } }
-  $('#login').hidden = true; $('#app').hidden = false; $('#side').hidden = false; $('#meBox').hidden = false; $('#publicBadge').hidden = true;
-  $('#meName').textContent = me;
-  document.querySelectorAll('[data-nav]').forEach(n => n.classList.toggle('on', n.dataset.nav === kind));
+  $('#login').hidden = true; $('#app').hidden = false; $('#side').hidden = false; $('#meBox').hidden = false; $('#publicBadge').hidden = true; $('#newBtn').hidden = false;
+  $('#meName').textContent = me; $('#avatar').textContent = me[0].toUpperCase();
+  document.querySelectorAll('[data-nav]').forEach(n => n.toggleAttribute('aria-current', n.dataset.nav === kind) || n.dataset.nav === kind && n.setAttribute('aria-current', 'page'));
+  skeleton();
   try {
-    if (kind === 'shared') await showItems('Shared with me', await api('/api/shared-with-me'));
-    else if (kind === 'search') await showItems(`Results for “${decodeURIComponent(a || '')}”`, await api(`/api/search?q=${a || ''}`));
+    if (kind === 'search') { const q = decodeURIComponent(a || ''); $('#search').value = q; await showItems(`Results for “${q}”`, await api(`/api/search?q=${encodeURIComponent(q)}`), 'search'); }
+    else if (VIEWS[kind]) await showItems(VIEWS[kind], await api(`/api/${kind === 'shared' ? 'shared-with-me' : kind}`), kind);
     else if (kind === 'perf') await showPerf();
     else await showFolder(a && a !== 'root' ? a : null);
-  } catch (err) { $('#main').innerHTML = `<p class="bad">${esc(err.message)}</p>`; }
+  } catch (err) { $('#content').innerHTML = empty('warning', 'Could not load this view', esc(err.message)); }
   storage();
 }
 window.addEventListener('hashchange', route);
-$('#search').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.value.trim()) location.hash = `/search/${encodeURIComponent(e.target.value.trim())}`; });
-async function storage() { try { const s = await api('/api/stats'); $('#storage').textContent = `Server stores ${fmt(s.logicalBytes)} of files in ${fmt(s.physicalBytes)} of chunks (${s.physicalBytes ? s.dedupRatio.toFixed(2) : '1.00'}× dedup).`; } catch {} }
+$('#searchForm').onsubmit = e => { e.preventDefault(); const q = $('#search').value.trim(); if (q) location.hash = `/search/${encodeURIComponent(q)}`; };
+document.addEventListener('keydown', e => { if (e.key === '/' && !/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName) && !$('#app').hidden) { e.preventDefault(); $('#search').focus(); } });
+$('#menuToggle').onclick = () => $('#side').classList.toggle('open');
 
-// ---------- listings ----------
+async function storage() {
+  try {
+    const s = await api('/api/stats'); const pct = s.logicalBytes ? s.physicalBytes / s.logicalBytes * 100 : 0;
+    $('#storage').innerHTML = `<div><b style="color:var(--fg)">${fmt(s.physicalBytes)}</b> on disk for ${fmt(s.logicalBytes)} of files</div>
+      <div class="meter" role="img" aria-label="Disk use is ${pct.toFixed(0)} percent of the logical size" title="${fmt(s.physicalBytes)} of ${fmt(s.logicalBytes)}"><i style="width:${Math.max(pct, s.logicalBytes ? 2 : 0).toFixed(1)}%"></i></div>
+      <div>${s.physicalBytes ? `${s.dedupRatio.toFixed(2)}× saved by deduplication` : 'Nothing stored yet'}</div>`;
+  } catch {}
+}
+
+// ---------- items & rendering ----------
 const fromListing = l => [
-  ...l.folders.map(f => ({ type: 'folder', id: f.id, name: f.name, owner: f.ownerId, date: f.createdAt })),
-  ...l.files.map(f => ({ type: 'file', id: f.fileId, name: f.fileName, owner: f.userId, date: f.createdAt, size: f.totalSize }))];
+  ...l.folders.map(f => ({ type: 'folder', id: f.id, name: f.name, owner: f.ownerId, date: f.updatedAt || f.createdAt })),
+  ...l.files.map(f => ({ type: 'file', id: f.fileId, name: f.fileName, owner: f.userId, date: f.updatedAt || f.createdAt, size: f.totalSize }))];
+const fromItems = list => list.map(i => ({ type: i.type, id: i.id, name: i.name, owner: i.ownerId, size: i.size, date: i.date, role: i.role }));
 
 async function showFolder(id) {
   const l = await api(`/api/folders/${id || 'root'}/children`);
+  stars = new Set(l.starred);
+  view = { kind: 'folder', folderId: id, role: l.role, items: fromListing(l), folder: l.folder };
   const shared = l.role !== 'Owner';
-  view = { kind: 'folder', folderId: id, role: l.role, items: fromListing(l) };
-  const trail = l.path.map(p => [`#/folder/${p.id}`, p.name]);
-  render([[shared ? '#/shared' : '#/folder/root', shared ? 'Shared with me' : 'My Drive'], ...trail]);
+  render([[shared ? '#/shared' : '#/folder/root', shared ? 'Shared with me' : 'My Drive'], ...l.path.map(p => [`#/folder/${p.id}`, p.name])]);
 }
-
-async function showItems(title, items) {
-  view = { kind: 'items', role: null, items: items.map(i => ({ type: i.type, id: i.id, name: i.name, owner: i.ownerId, size: i.size, role: i.role })) };
+async function showItems(title, list, kind) {
+  if (kind === 'starred') list.forEach(i => stars.add(i.id));
+  view = { kind, items: fromItems(list) };
   render([[null, title]]);
 }
 
-function render(trail, base = null) {
-  const items = view.items;
-  $('#main').innerHTML = `<nav class="crumbs" aria-label="Breadcrumbs">${trail.map(([href, name], i) =>
-      (i ? '<span class="muted">›</span>' : '') + (href && i < trail.length - 1 ? `<a href="${href}">${esc(name)}</a>` : `<span>${esc(name)}</span>`)).join('')}</nav>
-    ${items.length ? `<table><thead><tr><th>Name</th><th class="hide-sm">Owner</th><th class="hide-sm">Created</th><th class="num">Size</th><th></th></tr></thead><tbody>
-      ${items.map((it, i) => `<tr class="item" data-i="${i}">
-        <td><div class="name">${icon(it.type, it.name)}<span>${esc(it.name)}</span></div></td>
-        <td class="hide-sm muted">${it.owner === me ? 'me' : esc(it.owner)}</td>
-        <td class="hide-sm muted">${when(it.date)}</td>
-        <td class="num muted">${it.type === 'folder' ? '—' : fmt(it.size)}</td>
-        <td class="num"><button class="icon" data-menu="${i}" aria-label="Actions for ${esc(it.name)}">⋮</button></td></tr>`).join('')}
-      </tbody></table>`
-    : `<div class="empty">${view.kind === 'folder' && canWrite() ? 'Drop files or folders here, or use ＋ New' : 'Nothing here'}</div>`}`;
-  view.base = base;
+function skeleton() { $('#content').innerHTML = Array.from({ length: 6 }, (_, i) => `<div class="sk"><i style="width:24px;height:24px;border-radius:6px"></i><i style="width:${40 + (i * 13) % 35}%"></i></div>`).join(''); }
+function empty(icon, title, text, action = '') { return `<div class="empty">${ic(icon)}<h3>${esc(title)}</h3><p>${text}</p>${action}</div>`; }
+
+function sorted(items) {
+  const by = { name: (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }),
+               date: (a, b) => (b.date || '').localeCompare(a.date || ''), size: (a, b) => (b.size || 0) - (a.size || 0) }[prefs.sort];
+  return view.kind === 'recent' || view.kind === 'trash' ? items : [...items].sort((a, b) => (a.type === b.type ? 0 : a.type === 'folder' ? -1 : 1) || by(a, b));
 }
 
-$('#main').addEventListener('click', e => {
-  const m = e.target.closest('[data-menu]');
-  if (m) return openMenu(m, view.items[m.dataset.menu]);
-  const row = e.target.closest('tr.item');
-  if (row) open(view.items[row.dataset.i]);
+function render(trail) {
+  $('#crumbs').innerHTML = trail.map(([href, name], i) => (i ? ic('caret-right') : '') +
+    (href && i < trail.length - 1 ? `<a href="${href}">${esc(name)}</a>` : `<span aria-current="page">${esc(name)}</span>`)).join('');
+  $('#tools').hidden = view.kind === 'perf';
+  $('#sort').value = prefs.sort; $('#viewList').setAttribute('aria-pressed', prefs.layout === 'list'); $('#viewGrid').setAttribute('aria-pressed', prefs.layout === 'grid');
+  const items = view.items = sorted(view.items);
+  const trashBar = view.kind === 'trash' && items.length
+    ? `<p class="muted small" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">Items in trash are deleted forever after 30 days.
+       <button class="btn ghost" id="emptyTrash" style="color:var(--destructive)">${ic('trash')}Empty trash</button></p>` : '';
+  if (!items.length) {
+    const E = { folder: canWrite() ? ['folder-open', 'Drop files here', 'Or use the New button to upload files or a whole folder.', `<button class="btn primary" id="emptyUpload">${ic('upload-simple')}Upload files</button>`] : ['folder-open', 'This folder is empty', ''],
+      shared: ['users', 'Nothing shared with you yet', 'Files and folders others share with you appear here.'],
+      recent: ['clock', 'No recent files', 'Files you upload or change show up here.'], starred: ['star', 'No starred items', 'Star files and folders to find them quickly.'],
+      trash: ['trash', 'Trash is empty', 'Deleted items stay here for 30 days.'], search: ['magnifying-glass', 'No results', 'Try a different name.'],
+      public: ['folder-open', 'This folder is empty', ''] }[view.kind] || ['folder-open', 'Nothing here', ''];
+    $('#content').innerHTML = empty(E[0], E[1], esc(E[2]), E[3] || '');
+    $('#emptyUpload')?.addEventListener('click', () => $('#pickFiles').click());
+    return;
+  }
+  const star = it => stars.has(it.id) ? `<svg class="star" aria-label="Starred" role="img"><use href="#i-star-fill"/></svg>` : '';
+  const owner = it => it.owner === me ? 'me' : esc(it.owner);
+  const kebab = (it, i) => `<button class="btn icon-btn" data-menu="${i}" aria-label="More actions for ${esc(it.name)}" aria-haspopup="menu">${ic('dots-three-vertical')}</button>`;
+  if (prefs.layout === 'grid') {
+    const card = (it, i) => `<article class="card item" data-i="${i}" tabindex="0" aria-label="${esc(it.name)}">
+      <div class="thumb">${it.type === 'file' && IMAGE.test(it.name) && it.size < 25e6 ? `<img loading="lazy" decoding="async" alt="" src="${fileUrl(it, true)}">` : kindIcon(it)}</div>
+      <footer>${it.type === 'folder' ? kindIcon(it).replace('class="kind"', 'class="ic"') : ''}<span title="${esc(it.name)}">${esc(it.name)}</span>${star(it)}${kebab(it, i)}</footer></article>`;
+    const folders = items.filter(i => i.type === 'folder'), files = items.filter(i => i.type === 'file');
+    $('#content').innerHTML = trashBar + (folders.length ? `<div class="section-label">Folders</div><div class="grid">${folders.map(f => card(f, items.indexOf(f))).join('')}</div>` : '')
+      + (files.length ? `<div class="section-label">Files</div><div class="grid">${files.map(f => card(f, items.indexOf(f))).join('')}</div>` : '');
+  } else {
+    const dateHead = view.kind === 'trash' ? 'Trashed' : 'Last modified';
+    $('#content').innerHTML = trashBar + `<table class="list"><thead><tr><th>Name</th><th class="hide-sm">Owner</th><th class="hide-sm">${dateHead}</th><th class="num hide-sm">Size</th><th><span class="sr">Actions</span></th></tr></thead><tbody>
+      ${items.map((it, i) => `<tr class="item" data-i="${i}" tabindex="0" aria-label="${esc(it.name)}, ${it.type}">
+        <td><div class="name">${kindIcon(it)}<span title="${esc(it.name)}">${esc(it.name)}</span>${star(it)}</div></td>
+        <td class="hide-sm muted">${owner(it)}</td><td class="hide-sm muted">${when(it.date)}</td>
+        <td class="num hide-sm muted">${it.type === 'folder' ? '—' : fmt(it.size)}</td><td class="num">${kebab(it, i)}</td></tr>`).join('')}</tbody></table>`;
+  }
+  $('#emptyTrash')?.addEventListener('click', async () => {
+    if (await confirmAction('Empty trash?', 'All items in the trash will be deleted forever. This can’t be undone.', 'Empty trash'))
+      act(() => api('/api/trash', { method: 'DELETE' }), 'Trash emptied');
+  });
+}
+
+$('#content').addEventListener('click', e => {
+  const m = e.target.closest('[data-menu]'); if (m) return openMenu(m, view.items[m.dataset.menu]);
+  const row = e.target.closest('.item'); if (row) open(view.items[row.dataset.i]);
 });
+$('#content').addEventListener('keydown', e => {
+  const row = e.target.closest('.item'); if (!row || e.target !== row) return;
+  if (e.key === 'Enter') open(view.items[row.dataset.i]);
+  if (e.key === 'Delete' && view.kind !== 'trash' && roleOf(view.items[row.dataset.i]) !== 'Viewer') trash(view.items[row.dataset.i]);
+  if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) { e.preventDefault(); openMenu(row.querySelector('[data-menu]'), view.items[row.dataset.i]); }
+});
+$('#sort').onchange = e => { prefs.sort = e.target.value; store.set('sort', prefs.sort); render(currentTrail()); };
+$('#viewList').onclick = () => { prefs.layout = 'list'; store.set('layout', 'list'); render(currentTrail()); };
+$('#viewGrid').onclick = () => { prefs.layout = 'grid'; store.set('layout', 'grid'); render(currentTrail()); };
+const currentTrail = () => [...$('#crumbs').children].filter(n => n.tagName !== 'svg').map(n => [n.getAttribute('href'), n.textContent]);
 
 const canWrite = () => view.kind === 'folder' && view.role !== 'Viewer';
 const roleOf = it => it.owner === me ? 'Owner' : (view.role || (it.role === 'editor' ? 'Editor' : 'Viewer'));
 const fileUrl = (it, inline) => (view.base ? `${view.base}/files/${it.id}` : `/api/files/${it.id}`) + (inline ? '?inline=true' : '');
 
 function open(it) {
+  if (view.kind === 'trash') return details(it);
   if (it.type === 'folder') location.hash = view.base ? `/s/${view.token}/${it.id}` : `/folder/${it.id}`;
   else if (PREVIEW.test(it.name)) preview(it);
   else download(it);
 }
-function download(it) { Object.assign(document.createElement('a'), { href: fileUrl(it), download: it.name }).click(); }
+function download(it) {
+  const href = it.type === 'folder' ? (view.base ? `${view.base}/zip?folderId=${it.id}` : `/api/folders/${it.id}/zip`) : fileUrl(it);
+  Object.assign(document.createElement('a'), { href, download: it.type === 'folder' ? `${it.name}.zip` : it.name }).click();
+}
 
 function openMenu(btn, it) {
-  const role = roleOf(it), edit = role !== 'Viewer', own = role === 'Owner';
-  const entries = [
-    it.type === 'folder' ? ['Open', () => open(it)] : PREVIEW.test(it.name) && ['Preview', () => preview(it)],
-    it.type === 'file' && ['Download', () => download(it)],
-    it.type === 'file' && !view.base && ['Chunks', () => chunks(it)],
-    !view.base && edit && ['Rename', () => rename(it)],
-    !view.base && own && ['Move', () => move(it)],
-    !view.base && own && ['Share', () => share(it)],
-    !view.base && edit && ['Delete', () => remove(it)],
+  const role = roleOf(it), edit = role !== 'Viewer', own = role === 'Owner', pub = !!view.base;
+  const entries = view.kind === 'trash' ? [['arrow-counter-clockwise', 'Restore', () => restore(it)], ['info', 'Details', () => details(it)], '-',
+      ['trash', 'Delete forever', () => deleteForever(it), 'danger']] : [
+    it.type === 'folder' ? ['folder-open', 'Open', () => open(it)] : PREVIEW.test(it.name) && ['eye', 'Preview', () => preview(it)],
+    ['download-simple', it.type === 'folder' ? 'Download as zip' : 'Download', () => download(it)],
+    !pub && ['star' + (stars.has(it.id) ? '-fill' : ''), stars.has(it.id) ? 'Remove from Starred' : 'Add to Starred', () => star(it)],
+    !pub && '-',
+    !pub && edit && ['pencil-simple', 'Rename', () => rename(it)],
+    !pub && own && ['arrow-bend-up-right', 'Move', () => move(it)],
+    !pub && ['copy', 'Make a copy', () => copy(it)],
+    !pub && own && ['share-network', 'Share', () => share(it)],
+    !pub && ['info', 'Details & activity', () => details(it)],
+    !pub && it.type === 'file' && ['cube', 'Chunks', () => chunks(it)],
+    !pub && edit && '-', !pub && edit && ['trash', 'Move to trash', () => trash(it), 'danger'],
   ].filter(Boolean);
   const menu = $('#menu');
-  menu.innerHTML = entries.map(([label], i) => `<button data-i="${i}">${label}</button>`).join('');
-  menu.onclick = e => { const i = e.target.dataset.i; if (i) { menu.hidePopover(); entries[i][1](); } };
-  const r = btn.getBoundingClientRect();
-  menu.style.top = `${Math.min(r.bottom, innerHeight - 40 * entries.length - 16)}px`;
-  menu.style.left = `${Math.max(8, r.right - 190)}px`;
+  menu.innerHTML = entries.map((e, i) => e === '-' ? '<hr>' : `<button role="menuitem" data-i="${i}" class="${e[3] || ''}">${ic(e[0])}${e[1]}</button>`).join('');
+  menu.onclick = e => { const b = e.target.closest('[data-i]'); if (b) { menu.hidePopover(); entries[b.dataset.i][2](); } };
+  menu.onkeydown = e => { const bs = [...menu.querySelectorAll('button')], i = bs.indexOf(document.activeElement);
+    if (e.key === 'ArrowDown') { e.preventDefault(); bs[(i + 1) % bs.length].focus(); } if (e.key === 'ArrowUp') { e.preventDefault(); bs[(i - 1 + bs.length) % bs.length].focus(); } };
   menu.showPopover();
+  const r = btn.getBoundingClientRect(), h = menu.offsetHeight, w = menu.offsetWidth;
+  menu.style.top = `${r.bottom + h + 8 > innerHeight ? Math.max(8, r.top - h - 4) : r.bottom + 4}px`;
+  menu.style.left = `${Math.min(Math.max(8, r.right - w), innerWidth - w - 8)}px`;
+  menu.querySelector('button').focus();
 }
 
 // ---------- actions ----------
 const itemPath = it => `/api/${it.type === 'folder' ? 'folders' : 'files'}/${it.id}`;
-async function act(fn, done) { try { await fn(); if (done) toast(done); route(); } catch (e) { toast(e.message); } }
-function rename(it) { const name = prompt('New name', it.name); if (name && name !== it.name) act(() => send(itemPath(it), { name }, 'PATCH'), 'Renamed'); }
-function remove(it) { if (confirm(`Delete “${it.name}”${it.type === 'folder' ? ' and everything inside it' : ''}?`)) act(() => api(itemPath(it), { method: 'DELETE' }), 'Deleted'); }
-function newFolder() { const name = prompt('New folder name'); if (name) act(() => send('/api/folders', { name, parentId: target() }), 'Folder created'); }
-
-function dialog(html, cls = '') {
-  const d = $('#dlg'); d.className = cls;
-  d.innerHTML = `<button class="icon x" aria-label="Close">×</button>${html}`;
-  d.querySelector('.x').onclick = () => d.close();
-  d.showModal(); return d;
+async function act(fn, done, undo) { try { await fn(); if (done) toast(done, undo); route(); } catch (e) { toast(e.message); } }
+async function rename(it) { const name = await ask('Rename', 'New name', it.name, 'Rename'); if (name && name !== it.name) act(() => send(itemPath(it), { name }, 'PATCH'), 'Renamed'); }
+function trash(it) { act(() => api(itemPath(it), { method: 'DELETE' }), `Moved “${it.name}” to trash`, ['Undo', () => act(() => api(`/api/trash/${it.type}/${it.id}/restore`, { method: 'POST' }), 'Restored')]); }
+function restore(it) { act(() => api(`/api/trash/${it.type}/${it.id}/restore`, { method: 'POST' }), `Restored “${it.name}”`); }
+async function deleteForever(it) {
+  if (await confirmAction(`Delete “${it.name}” forever?`, `${it.type === 'folder' ? 'The folder and everything in it' : 'This file and its version history'} will be deleted. This can’t be undone.`, 'Delete forever'))
+    act(() => api(`/api/trash/${it.type}/${it.id}`, { method: 'DELETE' }), 'Deleted forever');
 }
+function star(it) { const on = !stars.has(it.id); act(() => api(`/api/stars/${it.type}/${it.id}`, { method: on ? 'PUT' : 'DELETE' }).then(() => on ? stars.add(it.id) : stars.delete(it.id)), on ? 'Added to Starred' : 'Removed from Starred'); }
+function copy(it) { act(() => api(`${itemPath(it)}/copy`, { method: 'POST' }), `Copied “${it.name}” — no extra storage used`); }
+async function newFolder() { const name = await ask('New folder', 'Folder name', 'Untitled folder', 'Create'); if (name) act(() => send('/api/folders', { name, parentId: target() }), 'Folder created'); }
 
 function preview(it) {
-  const url = fileUrl(it, true);
-  dialog(`<h2>${esc(it.name)}</h2>${/\.pdf$/i.test(it.name) ? `<iframe src="${url}" title="${esc(it.name)}"></iframe>` : `<img src="${url}" alt="${esc(it.name)}">`}
-    <div class="row" style="justify-content:flex-end"><a href="${fileUrl(it)}" download="${esc(it.name)}"><button>Download</button></a></div>`, 'preview');
+  const url = fileUrl(it, true), n = it.name;
+  const body = /\.pdf$/i.test(n) ? `<iframe src="${url}" title="${esc(n)}"></iframe>` : AUDIO.test(n) ? `<audio controls autoplay src="${url}"></audio>`
+    : VIDEO.test(n) ? `<video controls src="${url}"></video>` : `<img src="${url}" alt="${esc(n)}">`;
+  dialog(`<h2>${esc(n)}</h2>${body}<div class="actions"><button class="btn" id="pvDl">${ic('download-simple')}Download</button></div>`, AUDIO.test(n) ? '' : 'wide')
+    .querySelector('#pvDl').onclick = () => download(it);
 }
 
 async function move(it) {
-  const d = dialog(`<h2>Move “${esc(it.name)}”</h2><div id="mv"></div>`);
+  const d = dialog(`<h2>Move “${esc(it.name)}”</h2><nav class="crumbs" id="mvCrumbs" style="font-size:15px"></nav><div class="scroll picker" id="mvList"></div>
+    <div class="actions"><button class="btn" data-close>Cancel</button><button class="btn primary" id="here">Move here</button></div>`);
   const show = async id => {
     const l = await api(`/api/folders/${id || 'root'}/children`);
+    d.querySelector('#mvCrumbs').innerHTML = `<a href="#" data-to="">My Drive</a>` + l.path.map(p => `${ic('caret-right')}<a href="#" data-to="${p.id}">${esc(p.name)}</a>`).join('');
     const folders = l.folders.filter(f => f.id !== it.id);
-    d.querySelector('#mv').innerHTML = `<nav class="crumbs"><a href="#" data-to="">My Drive</a>${l.path.map(p => `<span class="muted">›</span><a href="#" data-to="${p.id}">${esc(p.name)}</a>`).join('')}</nav>
-      <div class="scroll">${folders.map(f => `<div class="row" style="cursor:pointer" data-to="${f.id}">${FOLDER_ICON}${esc(f.name)}</div>`).join('') || '<p class="muted">No subfolders</p>'}</div>
-      <div class="row" style="justify-content:flex-end"><button class="primary" id="here">Move here</button></div>`;
-    d.querySelector('#mv').onclick = e => { const t = e.target.closest('[data-to]'); if (t) { e.preventDefault(); show(t.dataset.to || null); } };
+    d.querySelector('#mvList').innerHTML = folders.map(f => `<button data-to="${f.id}">${kindIcon({ type: 'folder' })}${esc(f.name)}</button>`).join('') || '<p class="muted">No folders here</p>';
     d.querySelector('#here').onclick = () => { d.close(); act(() => send(itemPath(it), { moveTo: id || 'root' }, 'PATCH'), 'Moved'); };
   };
+  d.addEventListener('click', e => { const t = e.target.closest('[data-to]'); if (t) { e.preventDefault(); show(t.dataset.to || null); } });
   show(null);
 }
 
 async function share(it) {
   const d = dialog(`<h2>Share “${esc(it.name)}”</h2>
-    <form class="row" id="addShare"><input type="text" name="user" placeholder="Username" required aria-label="Username">
-      <select name="role" style="width:auto" aria-label="Role"><option value="viewer">Viewer</option><option value="editor">Editor</option></select>
-      <button class="primary">Share</button></form>
-    <div id="shares"></div>
-    <h2 style="margin-top:20px">Public link</h2><div id="link"></div>`);
+    <form class="row" id="addShare"><label class="field">Add people<input class="input" name="user" placeholder="Username" required autocomplete="off"></label>
+      <label class="field">Role<select class="input" name="role"><option value="viewer">Viewer</option><option value="editor">Editor</option></select></label>
+      <button class="btn primary">Share</button></form>
+    <div class="people" id="people"></div>
+    <h3 style="margin:0 0 8px;font-size:15px">General access</h3><div id="link"></div>`);
   const load = async () => {
-    const shares = await api(`/api/shares/${it.type}/${it.id}`);
-    const people = shares.filter(s => s.grantee), link = shares.find(s => s.linkToken);
-    d.querySelector('#shares').innerHTML = people.map(s => `<div class="row"><span style="flex:1">${esc(s.grantee)} <span class="muted">· ${s.role}</span></span><button data-del="${s.shareId}">Remove</button></div>`).join('')
-      || '<p class="muted">Not shared with anyone yet.</p>';
+    const shares = await api(`/api/shares/${it.type}/${it.id}`), people = shares.filter(s => s.grantee), link = shares.find(s => s.linkToken);
+    d.querySelector('#people').innerHTML = `<div class="person"><span class="avatar">${esc(me[0].toUpperCase())}</span><div><b>${esc(me)}</b> (you)</div><span class="muted small">Owner</span></div>` +
+      people.map(s => `<div class="person"><span class="avatar" style="background:var(--subtle);color:var(--fg)">${esc(s.grantee[0].toUpperCase())}</span><div>${esc(s.grantee)}</div>
+        <span class="muted small">${s.role === 'editor' ? 'Editor' : 'Viewer'}</span><button class="btn ghost" data-del="${s.shareId}" aria-label="Remove ${esc(s.grantee)}">Remove</button></div>`).join('');
     const url = link && `${location.origin}/#/s/${link.linkToken}`;
     d.querySelector('#link').innerHTML = link
-      ? `<p class="muted">Anyone with this link can view${it.type === 'folder' ? ' this folder and everything in it' : ''}. No sign-in needed.</p>
-         <div class="row"><input type="text" readonly value="${url}" aria-label="Link"><button id="copy">Copy</button><button data-del="${link.shareId}">Remove</button></div>`
-      : `<button id="mkLink">Create public link</button>`;
-    d.querySelector('#copy')?.addEventListener('click', () => navigator.clipboard.writeText(url).then(() => toast('Link copied')));
+      ? `<p class="muted small" style="margin:0 0 8px">${ic('link', 'ic')} Anyone with the link can view${it.type === 'folder' ? ' this folder and everything in it' : ''}.</p>
+         <div class="row"><input class="input" readonly value="${url}" aria-label="Public link"><button class="btn" id="copyLink">${ic('copy')}Copy</button><button class="btn ghost" data-del="${link.shareId}">Remove</button></div>`
+      : `<div class="person">${ic('lock-simple')}<div>Restricted<div class="muted small">Only people added above can open it.</div></div><button class="btn" id="mkLink">${ic('link')}Create link</button></div>`;
+    d.querySelector('#copyLink')?.addEventListener('click', () => navigator.clipboard.writeText(url).then(() => toast('Link copied'), () => toast('Copy failed — select the link instead')));
     d.querySelector('#mkLink')?.addEventListener('click', () => send('/api/shares', { itemType: it.type, itemId: it.id, link: true }).then(load, e => toast(e.message)));
   };
-  d.onclick = e => { const id = e.target.dataset.del; if (id) api(`/api/shares/${id}`, { method: 'DELETE' }).then(load, err => toast(err.message)); };
+  d.addEventListener('click', e => { const id = e.target.closest('[data-del]')?.dataset.del; if (id) api(`/api/shares/${id}`, { method: 'DELETE' }).then(load, err => toast(err.message)); });
   d.querySelector('#addShare').onsubmit = e => {
     e.preventDefault();
     send('/api/shares', { itemType: it.type, itemId: it.id, userName: e.target.user.value, role: e.target.role.value })
-      .then(() => { e.target.user.value = ''; load(); }, err => toast(err.message));
+      .then(() => { e.target.user.value = ''; load(); toast('Shared'); }, err => toast(err.message));
   };
   load();
 }
 
+// ---------- details panel: info, versions, activity ----------
+function closeDetails() { $('#details').hidden = true; }
+async function details(it) {
+  const p = $('#details'); p.hidden = false;
+  p.innerHTML = `<header>${kindIcon(it)}<h2>${esc(it.name)}</h2><button class="btn icon-btn" id="closeDetails" aria-label="Close details">${ic('x')}</button></header>
+    <dl><dt>Type</dt><dd>${it.type === 'folder' ? 'Folder' : (it.name.split('.').pop() || 'File').toUpperCase() + ' file'}</dd>
+    ${it.size != null ? `<dt>Size</dt><dd>${fmt(it.size)}</dd>` : ''}<dt>Owner</dt><dd>${it.owner === me ? 'me' : esc(it.owner)}</dd>
+    <dt>${view.kind === 'trash' ? 'Trashed' : 'Modified'}</dt><dd>${it.date ? new Date(it.date).toLocaleString() : '—'}</dd></dl>
+    <div id="dVersions"></div><h3>Activity</h3><ol class="timeline" id="dActivity"><li class="muted">Loading…</li></ol>`;
+  $('#closeDetails').onclick = closeDetails; $('#closeDetails').focus();
+  if (it.type === 'file') {
+    const versions = await api(`/api/files/${it.id}/versions`).catch(() => []);
+    $('#dVersions').innerHTML = `<h3>Versions</h3>` + (versions.length ? `<div class="version"><div><b>Current</b><div class="muted small">${fmt(it.size)}</div></div></div>` +
+      versions.map((v, i) => `<div class="version"><div>Version ${versions.length - i}<div class="muted small">${new Date(v.createdAt).toLocaleString()} · ${fmt(v.totalSize)}</div></div>
+        <a class="btn icon-btn" href="/api/files/${it.id}/versions/${v.versionId}" download="${esc(it.name)}" aria-label="Download version ${versions.length - i}">${ic('download-simple')}</a>
+        ${roleOf(it) !== 'Viewer' && view.kind !== 'trash' ? `<button class="btn icon-btn" data-restore="${v.versionId}" aria-label="Restore version ${versions.length - i}" title="Restore">${ic('arrow-counter-clockwise')}</button>` : ''}</div>`).join('')
+      : `<p class="muted small">Upload a file with the same name in the same folder to create a new version. Old versions are kept and cost only the changed chunks.</p>`);
+    $('#dVersions').onclick = e => { const v = e.target.closest('[data-restore]')?.dataset.restore; if (v) act(() => api(`/api/files/${it.id}/versions/${v}/restore`, { method: 'POST' }), 'Version restored').then(() => details(it)); };
+  }
+  const activity = await api(`/api/activity/${it.type}/${it.id}`).catch(() => []);
+  $('#dActivity').innerHTML = activity.map(a => `<li><span class="dot" aria-hidden="true">${esc(a.userId[0].toUpperCase())}</span><div><b>${a.userId === me ? 'You' : esc(a.userId)}</b> ${esc(a.action)}
+    ${a.itemId !== it.id ? `<b>${esc(a.name || a.detail || '')}</b>` : ''} ${a.detail && (a.itemId === it.id || a.name) ? `<span class="muted">${esc(a.detail)}</span>` : ''}
+    <div class="muted small">${when(a.at)}</div></div></li>`).join('') || '<li class="muted">No activity yet.</li>';
+}
+
 async function chunks(it) {
-  const m = await api(`/api/files/${it.id}/manifest`);
-  const sizes = m.chunks.map(c => c.byteSize), max = Math.max(...sizes, 1);
-  // Chunks reused by other files in this folder show how dedup shares storage.
-  const others = await Promise.all(view.items.filter(x => x.type === 'file' && x.id !== it.id).slice(0, 50)
-    .map(x => api(`/api/files/${x.id}/manifest`).catch(() => ({ chunks: [] }))));
-  const reused = new Set(others.flatMap(o => o.chunks.map(c => c.chunkHash)));
+  const m = await api(`/api/files/${it.id}/manifest`), sizes = m.chunks.map(c => c.byteSize), max = Math.max(...sizes, 1);
   const d = dialog(`<h2>Chunks of “${esc(it.name)}”</h2>
-    <p class="muted">${m.chunks.length} chunks · min ${fmt(Math.min(...sizes))} · avg ${fmt(sizes.reduce((a, b) => a + b, 0) / (sizes.length || 1))} · max ${fmt(max)}
-      · ${m.chunks.filter(c => reused.has(c.chunkHash)).length} also used by other files in this folder · <span class="mono">${esc(m.file.chunker)}</span></p>
-    <div class="scroll"><table><thead><tr><th class="num">#</th><th class="num">Size</th><th>Relative size</th><th class="hide-sm">SHA-256</th><th></th></tr></thead><tbody>
-    ${m.chunks.slice(0, 1500).map(c => `<tr><td class="num">${c.sequenceIndex}</td><td class="num">${fmt(c.byteSize)}<div class="muted mono">${c.byteSize.toLocaleString()} B</div></td>
-      <td style="width:30%"><div class="bar"><i style="width:${(c.byteSize / max * 100).toFixed(1)}%"></i></div></td>
-      <td class="mono hide-sm">${c.chunkHash.slice(0, 12)}…${reused.has(c.chunkHash) ? ' <span class="ok">shared</span>' : ''}</td>
-      <td class="num"><button data-chunk="${c.sequenceIndex}" data-hash="${c.chunkHash}">Download</button></td></tr>`).join('')}</tbody></table></div>`);
+    <p class="muted small">${m.chunks.length} chunks · min ${fmt(Math.min(...sizes))} · avg ${fmt(sizes.reduce((a, b) => a + b, 0) / (sizes.length || 1))} · max ${fmt(max)} · <span class="mono">${esc(m.file.chunker)}</span></p>
+    <div class="scroll"><table class="list"><thead><tr><th class="num">#</th><th class="num">Size</th><th>Relative size</th><th class="hide-sm">SHA-256</th><th></th></tr></thead><tbody>
+    ${m.chunks.slice(0, 1500).map(c => `<tr><td class="num">${c.sequenceIndex}</td><td class="num">${fmt(c.byteSize)}</td>
+      <td style="width:30%"><div class="bar" title="${c.byteSize.toLocaleString()} bytes"><i style="width:${(c.byteSize / max * 100).toFixed(1)}%"></i></div></td>
+      <td class="mono hide-sm">${c.chunkHash.slice(0, 12)}…</td>
+      <td class="num"><button class="btn icon-btn" data-chunk="${c.sequenceIndex}" data-hash="${c.chunkHash}" aria-label="Download chunk ${c.sequenceIndex}">${ic('download-simple')}</button></td></tr>`).join('')}</tbody></table></div>`, 'wide');
   d.onclick = async e => {
+    if (e.target.closest('[data-close]') || e.target === d) return d.close();
     const b = e.target.closest('[data-chunk]'); if (!b) return;
     try {
       const r = await fetch(`/api/files/${it.id}/chunks/${b.dataset.chunk}`); if (!r.ok) throw new Error(`Error ${r.status}`);
@@ -348,62 +717,64 @@ async function chunks(it) {
       if (hex(await crypto.subtle.digest('SHA-256', await blob.arrayBuffer())) !== b.dataset.hash) throw new Error('Chunk failed its SHA-256 check');
       const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: `${it.name}.chunk${b.dataset.chunk}` });
       a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 10000);
-      toast(`Chunk ${b.dataset.chunk}: ${fmt(blob.size)}, SHA-256 verified ✓`);
+      toast(`Chunk ${b.dataset.chunk} verified with SHA-256 and saved`);
     } catch (err) { toast(err.message); }
   };
 }
 
 // ---------- public links ----------
 async function showPublic(token, folderId) {
-  $('#login').hidden = true; $('#app').hidden = false; $('#side').hidden = true; $('#meBox').hidden = true; $('#publicBadge').hidden = false;
+  $('#login').hidden = true; $('#app').hidden = false; $('#side').hidden = true; $('#meBox').hidden = true; $('#publicBadge').hidden = false; $('#menuToggle').hidden = true;
+  skeleton();
   try {
     const r = await api(`/api/public/${token}/${folderId ? `?folderId=${folderId}` : ''}`);
     view = { kind: 'public', token, base: `/api/public/${token}`, role: 'Viewer' };
-    if (r.file) { view.items = [{ type: 'file', id: r.file.fileId, name: r.file.fileName, owner: r.file.userId, size: r.file.totalSize, date: r.file.createdAt }]; return render([[null, 'Shared file']], view.base); }
+    if (r.file) { view.items = [{ type: 'file', id: r.file.fileId, name: r.file.fileName, owner: r.file.userId, size: r.file.totalSize, date: r.file.updatedAt || r.file.createdAt }]; return render([[null, 'Shared file']]); }
     view.items = fromListing(r);
-    render(r.path.map(p => [`#/s/${token}/${p.id}`, p.name]), view.base);
-  } catch { $('#main').innerHTML = '<p class="bad">This link is invalid or has been removed.</p>'; }
+    render(r.path.map(p => [`#/s/${token}/${p.id}`, p.name]));
+  } catch { $('#crumbs').innerHTML = ''; $('#content').innerHTML = empty('lock-simple', 'Link unavailable', 'This link is invalid or has been removed.'); }
 }
 
-// ---------- performance ----------
+// ---------- performance (dataviz: single series, one hue, values in text ink, per-bar title tooltip) ----------
 const PHASES = { total: 'Total (wall clock)', read_chunk: 'Read request + chunk', backpressure_wait: 'Waiting for workers (backpressure)', hash: 'SHA-256 hashing',
   dedup_lookup: 'Dedup lookups (DB)', blob_write: 'Chunk writes (disk)', db_register: 'Register chunks (DB)', manifest_save: 'Save file manifest (DB)' };
 async function showPerf() {
   view = { kind: 'perf', items: [] };
-  const routes = await api('/api/metrics');
-  const t = lastUpload?.timings, top = t && Math.max(...Object.values(t));
-  $('#main').innerHTML = `<nav class="crumbs"><span>Performance</span></nav>
-    <h3>Last upload ${lastUpload ? `· ${esc(lastUpload.name)} (${fmt(lastUpload.size)})` : ''}</h3>
-    ${t ? `<p class="muted">Where the time went. Worker phases are summed across the parallel workers, so they can exceed the wall-clock total.</p>
-      <table>${Object.keys(PHASES).filter(k => k in t).map(k => `<tr><td style="width:40%">${PHASES[k]}</td>
-        <td style="width:45%"><div class="bar"><i style="width:${(t[k] / top * 100).toFixed(1)}%"></i></div></td><td class="num">${t[k].toFixed(1)} ms</td></tr>`).join('')}</table>`
-      : '<p class="muted">Upload a file in “Stream to server” mode to see its per-phase timing here (also sent as a Server-Timing header, visible in DevTools → Network).</p>'}
-    <h3 style="margin-top:28px">API latency (last 1000 requests per route)</h3>
-    <table><thead><tr><th>Route</th><th class="num">Samples</th><th class="num">p50</th><th class="num">p95</th><th class="num">Max</th></tr></thead><tbody>
+  $('#crumbs').innerHTML = '<span aria-current="page">Performance</span>'; $('#tools').hidden = true;
+  const routes = await api('/api/metrics'), t = lastUpload?.timings, top = t && Math.max(...Object.values(t));
+  $('#content').innerHTML = `<h2 style="font-size:17px;margin:8px 0 4px">Last upload ${lastUpload ? `<span class="muted">· ${esc(lastUpload.name)} (${fmt(lastUpload.size)})</span>` : ''}</h2>
+    ${t ? `<p class="muted small">Where the time went. Worker phases are summed across parallel workers, so they can exceed the wall-clock total.</p>
+      <table class="list"><tbody>${Object.keys(PHASES).filter(k => k in t).map(k => `<tr><td style="width:38%">${PHASES[k]}</td>
+        <td><div class="bar" title="${PHASES[k]}: ${t[k].toFixed(1)} ms"><i style="width:${Math.max(t[k] / top * 100, 1).toFixed(1)}%"></i></div></td>
+        <td class="num" style="width:110px">${t[k].toFixed(1)} ms</td></tr>`).join('')}</tbody></table>`
+      : `<p class="muted">Upload a file in Resumable mode to see its per-phase timing here (also sent as a <span class="mono">Server-Timing</span> header — DevTools → Network).</p>`}
+    <h2 style="font-size:17px;margin:32px 0 8px">API latency <span class="muted">· last 1000 requests per route</span></h2>
+    <div style="overflow:auto"><table class="list"><thead><tr><th>Route</th><th class="num">Samples</th><th class="num">p50</th><th class="num">p95</th><th class="num">Max</th></tr></thead><tbody>
     ${routes.map(r => `<tr><td class="mono">${esc(r.route)}</td><td class="num">${r.samples}</td><td class="num">${r.p50} ms</td><td class="num">${r.p95} ms</td><td class="num">${r.max} ms</td></tr>`).join('')}
-    </tbody></table>`;
+    </tbody></table></div>`;
 }
 
 // ---------- uploads ----------
 const target = () => canWrite() ? view.folderId : null;
 $('#newBtn').onclick = () => {
-  const menu = $('#menu'), entries = [['New folder', newFolder], ['File upload', () => $('#pickFiles').click()], ['Folder upload', () => $('#pickFolder').click()]];
-  menu.innerHTML = entries.map(([l], i) => `<button data-i="${i}">${l}</button>`).join('');
-  menu.onclick = e => { const i = e.target.dataset.i; if (i) { menu.hidePopover(); entries[i][1](); } };
-  const r = $('#newBtn').getBoundingClientRect(); menu.style.top = `${r.bottom + 4}px`; menu.style.left = `${r.left}px`; menu.showPopover();
+  const menu = $('#menu'), entries = [['folder-plus', 'New folder', newFolder], ['upload-simple', 'File upload', () => $('#pickFiles').click()], ['folder', 'Folder upload', () => $('#pickFolder').click()]];
+  menu.innerHTML = entries.map(([i, l], n) => `<button role="menuitem" data-i="${n}">${ic(i)}${l}</button>`).join('');
+  menu.onclick = e => { const b = e.target.closest('[data-i]'); if (b) { menu.hidePopover(); entries[b.dataset.i][2](); } };
+  menu.showPopover(); const r = $('#newBtn').getBoundingClientRect(); menu.style.top = `${r.bottom + 6}px`; menu.style.left = `${r.left}px`;
+  menu.querySelector('button').focus();
 };
 $('#pickFiles').onchange = e => { uploadAll([...e.target.files].map(file => ({ file, path: '' }))); e.target.value = ''; };
 $('#pickFolder').onchange = e => { uploadAll([...e.target.files].map(file => ({ file, path: file.webkitRelativePath.split('/').slice(0, -1).join('/') }))); e.target.value = ''; };
 $('#closeUploads').onclick = () => { $('#uploads').hidden = true; $('#jobs').innerHTML = ''; };
-try { $('#mode').value = localStorage.getItem('mode') || 'stream'; } catch {}
-$('#mode').onchange = e => { try { localStorage.setItem('mode', e.target.value); } catch {} };
+$('#mode').value = store.get('mode') || 'stream';
+$('#mode').onchange = e => store.set('mode', e.target.value);
 
-const main = $('#main');
-main.addEventListener('dragover', e => { if (view.kind !== 'public') { e.preventDefault(); main.classList.add('drop'); } });
-main.addEventListener('dragleave', () => main.classList.remove('drop'));
-main.addEventListener('drop', e => {
-  e.preventDefault(); main.classList.remove('drop');
-  const roots = [...e.dataTransfer.items].map(i => i.webkitGetAsEntry?.()).filter(Boolean); // must be read synchronously
+const pane = $('#pane');
+pane.addEventListener('dragover', e => { if (view.kind !== 'public' && view.kind !== 'trash' && e.dataTransfer.types.includes('Files')) { e.preventDefault(); pane.classList.add('drop'); } });
+pane.addEventListener('dragleave', e => { if (!pane.contains(e.relatedTarget)) pane.classList.remove('drop'); });
+pane.addEventListener('drop', e => {
+  e.preventDefault(); pane.classList.remove('drop');
+  const roots = [...e.dataTransfer.items].map(i => i.webkitGetAsEntry?.()).filter(Boolean); // read synchronously, before any await
   const out = [];
   const walk = (entry, path) => new Promise(done => {
     if (entry.isFile) return entry.file(file => { out.push({ file, path }); done(); }, done);
@@ -421,35 +792,67 @@ main.addEventListener('drop', e => {
 async function uploadAll(list) {
   if (!list.length) return;
   const folderId = target();
-  if (view.kind !== 'folder' || !canWrite()) toast('Uploading to My Drive');
+  if (!canWrite()) toast('Uploading to My Drive');
   $('#uploads').hidden = false;
-  for (const { file, path } of list) await uploadOne(file, folderId, path);
-  if (view.kind === 'folder') route();
+  let ok = 0;
+  for (const { file, path } of list) ok += await uploadOne(file, folderId, path);
+  $('#upTitle').textContent = `${ok} of ${list.length} upload${list.length > 1 ? 's' : ''} complete`;
+  if (view.kind === 'folder' || view.kind === 'recent') route();
 }
 
 async function uploadOne(file, folderId, path) {
   const el = document.createElement('div'); el.className = 'job';
-  el.innerHTML = `<div><b>${esc(path ? `${path}/${file.name}` : file.name)}</b> <span class="msg muted">waiting…</span></div><div class="bar"><i style="width:0"></i></div>`;
-  $('#jobs').prepend(el);
-  const set = (pct, msg, cls = 'muted') => { el.querySelector('i').style.width = pct + '%'; const s = el.querySelector('.msg'); s.textContent = msg; s.className = 'msg ' + cls; };
-  const q = `fileName=${encodeURIComponent(file.name)}${folderId ? `&folderId=${folderId}` : ''}${path ? `&path=${encodeURIComponent(path)}` : ''}`;
+  el.innerHTML = `${kindIcon({ type: 'file', name: file.name }).replace('class="kind"', 'class="ic"')}<b title="${esc(path ? `${path}/${file.name}` : file.name)}">${esc(file.name)}</b>
+    <span class="msg">Waiting…</span><div class="bar"><i style="width:0"></i></div>`;
+  $('#jobs').prepend(el); $('#upTitle').textContent = `Uploading ${file.name}`;
+  const set = (pct, msg) => { el.querySelector('.bar i').style.width = `${Math.min(pct, 100).toFixed(1)}%`; el.querySelector('.msg').textContent = msg; };
   try {
     if ($('#mode').value === 'delta') {
       const r = await deltaUpload(file, folderId, path, set);
-      set(100, `✓ sent ${fmt(r.sent)} of ${fmt(file.size)} (${r.uploaded}/${r.total} chunks new)`, 'ok');
+      set(100, `Done — sent ${fmt(r.sent)} of ${fmt(file.size)} (${r.uploaded}/${r.total} chunks new)`);
     } else {
-      const r = await new Promise((ok, fail) => {
-        const x = new XMLHttpRequest();
-        x.open('POST', `/api/files?${q}`);
-        x.upload.onprogress = e => e.lengthComputable && set(e.loaded / e.total * 100, `${fmt(e.loaded)} / ${fmt(e.total)}`);
-        x.onload = () => x.status === 201 ? ok(JSON.parse(x.responseText)) : fail(new Error(x.status === 403 ? 'No permission to upload here' : `Error ${x.status}`));
-        x.onerror = () => fail(new Error('Network error'));
-        x.send(file);
-      });
+      const r = await resumableUpload(file, folderId, path, set);
       lastUpload = { name: file.name, size: file.size, timings: r.timings };
-      set(100, `✓ ${r.chunkCount} chunks, ${r.newChunks} new, ${r.dedupedChunks} deduplicated`, 'ok');
+      set(100, `Done — ${r.newChunks} new chunks, ${r.dedupedChunks} already stored`);
     }
-  } catch (err) { set(0, `✗ ${err.message}`, 'bad'); }
+    el.classList.add('ok'); el.querySelector('.bar').hidden = true; return 1;
+  } catch (err) { el.classList.add('fail'); set(0, err.message); return 0; }
+}
+
+// Google-style resumable upload: one session, 8 MB slices, retries with backoff, resumes after a reload (same file re-selected).
+async function resumableUpload(file, folderId, path, set) {
+  const key = `upload:${file.name}:${file.size}:${file.lastModified}:${folderId || ''}:${path || ''}`;
+  let url = store.get(key), received = 0;
+  const status = async () => {
+    const r = await fetch(url, { method: 'PUT', headers: { 'Content-Range': `bytes */${file.size}` } });
+    if (r.status === 201) return { done: await r.json() };
+    if (r.status === 308) return { received: (await r.json()).received };
+    throw Object.assign(new Error(`Upload session lost (${r.status})`), { status: r.status });
+  };
+  if (url) { try { const s = await status(); if (s.done) { store.set(key, null); return s.done; } received = s.received; set(received / file.size * 100, 'Resuming…'); } catch { url = null; } }
+  if (!url) { url = `/api/uploads/${(await send('/api/uploads', { fileName: file.name, size: file.size, folderId, path: path || null })).uploadId}`; store.set(key, url); }
+  for (let attempt = 0; ;) {
+    try {
+      if (file.size === 0) { const s = await status(); store.set(key, null); return s.done; }
+      const end = Math.min(received + SLICE, file.size);
+      const r = await new Promise((ok, fail) => {
+        const x = new XMLHttpRequest(); x.open('PUT', url);
+        x.setRequestHeader('Content-Range', `bytes ${received}-${end - 1}/${file.size}`);
+        x.upload.onprogress = e => set((received + e.loaded) / file.size * 100, `${fmt(received + e.loaded)} of ${fmt(file.size)}`);
+        x.onload = () => ok({ status: x.status, body: x.responseText ? JSON.parse(x.responseText) : null });
+        x.onerror = () => fail(new Error('Network error'));
+        x.send(file.slice(received, end));
+      });
+      if (r.status === 201) { store.set(key, null); return r.body; }
+      if (r.status !== 308) throw Object.assign(new Error(r.body?.error || `Upload failed (${r.status})`), { fatal: r.status !== 409 });
+      received = r.body.received; attempt = 0;
+    } catch (err) {
+      if (err.fatal || ++attempt > 5) throw err;
+      set(received / file.size * 100, `Connection lost — retrying (${attempt}/5)…`);
+      await new Promise(w => setTimeout(w, 500 * 2 ** attempt));
+      try { const s = await status(); if (s.done) { store.set(key, null); return s.done; } received = s.received; } catch (e) { if (e.status === 404) { store.set(key, null); throw e; } }
+    }
+  }
 }
 
 // Delta sync: hash 4 MB blocks locally, ask which are missing, send only those, then commit the manifest.
@@ -457,7 +860,7 @@ async function deltaUpload(file, folderId, path, set) {
   const hashes = [];
   for (let o = 0; o < file.size; o += CHUNK) {
     hashes.push(hex(await crypto.subtle.digest('SHA-256', await file.slice(o, o + CHUNK).arrayBuffer())));
-    set(Math.min(o + CHUNK, file.size) / file.size * 30, `hashing ${fmt(Math.min(o + CHUNK, file.size))}`);
+    set(Math.min(o + CHUNK, file.size) / file.size * 30, `Hashing ${fmt(Math.min(o + CHUNK, file.size))}`);
   }
   const need = new Set((await send('/api/sync/negotiate', { hashes })).missing);
   const todo = [], seen = new Set();
@@ -468,11 +871,11 @@ async function deltaUpload(file, folderId, path, set) {
       const i = todo[next++], blob = file.slice(i * CHUNK, (i + 1) * CHUNK);
       await api(`/api/chunks/${hashes[i]}`, { method: 'PUT', body: blob });
       sent += blob.size; finished++;
-      set(30 + finished / todo.length * 65, `sending chunk ${finished} / ${todo.length}`);
+      set(30 + finished / todo.length * 65, `Sending chunk ${finished} of ${todo.length}`);
     }
   };
   await Promise.all(Array.from({ length: Math.min(4, todo.length) }, worker));
-  set(97, 'committing…');
+  set(97, 'Committing…');
   await send('/api/sync/commit', { fileName: file.name, chunks: hashes, chunker: `browser-fixed-${CHUNK}`, folderId, path: path || null });
   return { total: hashes.length, uploaded: todo.length, sent };
 }

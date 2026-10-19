@@ -28,7 +28,7 @@ browser DevTools, and the **Performance** page in the UI). `GET /api/metrics` gi
 | L1 | **SQLite commit cost dominates chunk registration.** WAL mode with the default `synchronous=FULL` fsyncs every commit, and 4 workers queue for SQLite's single writer. | `PRAGMA synchronous=NORMAL` (safe against app crashes; power loss can drop the last commits, but blobs are fsynced and rows self-heal on the next upload), or batch the chunk inserts per upload into one transaction. Expect this phase to drop by an order of magnitude. |
 | L2 | One fsync per 4 MB blob | Group commit: fsync a batch, or rely on replication (L-durability below) instead of per-write fsync. |
 | L3 | One DB round-trip per chunk for dedup | Batch existence checks per N chunks, plus an in-memory hash cache or Bloom filter in front of the DB. Small today (0.04 s), large when the catalog is remote. |
-| L4 | No HTTP `Range` support | Required for resumable downloads and seeking in audio/video. Map a byte range to chunks via cumulative offsets. |
+| L4 | ~~No HTTP `Range` support~~ **fixed** | `ChunkedFileStream` maps a byte range to chunks via cumulative offsets; ASP.NET answers `206`. Audio/video seek. |
 | L5 | No caching | Chunks are immutable, so they are perfect for `Cache-Control: immutable` + `ETag: <hash>` and a CDN. |
 | L6 | Browser hashing runs on the main thread | Move delta-sync hashing into a Web Worker. |
 | L7 | Single process metrics | Export to OpenTelemetry (traces + histograms) once there is more than one node. |
@@ -40,7 +40,7 @@ browser DevTools, and the **Performance** page in the UI). `GET /api/metrics` gi
 | One copy of every chunk | 3 replicas or erasure coding (e.g. Reed-Solomon 6+3), "11 nines" durability | Replicate chunk writes to N workers; read from any healthy replica; background scrubbing re-verifies hashes. |
 | One SQLite file, one writer | Sharded SQL or a distributed KV store (Spanner, MySQL shards, Edgestore at Dropbox) | The `IMetadataRepository` boundary already exists: a Postgres repository, then sharding by user. |
 | Single API process | Stateless gateways behind a load balancer | Move session state to tokens (already supported) so any node can serve a request. |
-| No garbage collection | Mark-and-sweep with a grace period | Deleting a file or folder removes rows only; chunks stay on disk. Needs GC that respects in-flight uploads (see the GC race in the course). |
+| ~~No garbage collection~~ **fixed** | Mark-and-sweep with a grace period | Hourly `Janitor`: purge 30-day-old trash, then delete unreferenced chunks older than 1 h (`DELETE … RETURNING`) and their blobs. |
 | No change feed | Clients long-poll a cursor of changes | A `Changes` journal table + `GET /api/changes?cursor=` lets clients sync without rescanning. |
 | No backups / point-in-time restore | Continuous backups of metadata | Snapshot the SQLite file (or use Postgres PITR). |
 
@@ -73,13 +73,11 @@ browser DevTools, and the **Performance** page in the UI). `GET /api/metrics` gi
 ## 4. Product features
 
 Done now: folders (create, rename, move, delete, breadcrumbs), whole-folder upload, sharing with users (viewer /
-editor, inherited), public links, "Shared with me", search, image + PDF preview, a Drive-style UI.
+editor, inherited), public links, "Shared with me", search, image + PDF preview, a Drive-style UI. Added in issue #10: trash + restore, file versions, instant copy of files
+and whole folders, starred, recent, sorting, grid view, folder zip, audio/video playback, resumable uploads, activity.
 
 | Missing | Notes |
 |---|---|
-| Trash + restore | Soft delete with `TrashedAt`; pairs with GC. |
-| File versions | Re-upload of the same name becomes a new version; nearly free with dedup since only changed chunks are new. |
-| Audio / video playback, Office previews | Needs `Range` (L4); Office needs a converter. |
-| Download a folder as .zip | Stream a zip built from chunks on the fly. |
-| Starred, recent, sorting, grid view, thumbnails | UI work; thumbnails need a background job. |
+| Office previews | Needs a converter (LibreOffice headless) running as a job. |
+| Real thumbnails | Grid shows the image itself, lazily; a background job should render small previews for big photos, PDFs, video. |
 | Multiple owners per folder tree | Today items created in a shared folder belong to the folder's owner, and moves across owners are rejected. |

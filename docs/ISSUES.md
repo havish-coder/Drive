@@ -5,9 +5,10 @@ Status: `open` · `fixed` · `wontfix`
 
 | # | Status | Summary |
 |---|---|---|
+| 10 | fixed | Drive feature gaps: trash + GC, versions, instant copy, starred/recent/grid, folder zip, media seeking, resumable uploads, activity; premium UI |
 | 9 | fixed | After updating, browsers could keep showing the old UI (no login screen): the page had no `Cache-Control` |
 | 8 | open | Global dedup leaks chunk existence via negotiate; no proof-of-possession on commit (gap S3, S4) |
-| 7 | open | Deleting files/folders never frees chunk storage: no garbage collector |
+| 7 | fixed | Deleting files/folders never frees chunk storage: no garbage collector (fixed in #10) |
 | 6 | open | Measured: registering chunk rows in SQLite costs ~107 ms per insert under 4 concurrent workers (gap L1) |
 | 5 | fixed | No way to see where upload latency goes: per-phase timings, Server-Timing, route metrics, Performance page |
 | 4 | fixed | Identity was a spoofable `X-User-Id` header: real accounts, sessions and API tokens |
@@ -18,6 +19,32 @@ Status: `open` · `fixed` · `wontfix`
 Full analysis of what remains versus a real product: [`docs/GAP_ANALYSIS.md`](GAP_ANALYSIS.md).
 
 ---
+
+## #10 Drive features from Google's public Drive API behaviour, scaled to folders, premium UI
+Spec: Google's public Drive API v3 docs (trash, revisions, copy, starred, resumable uploads, activity), not reverse
+engineering. Schema v3 adds `TrashedAt`/`UpdatedAt` on files and folders plus `Versions`, `Version_Chunks`, `Stars`,
+`Activity`, `Uploads`.
+- **Trash + GC (fixes #7)**: `DELETE` now trashes; one timestamp is stamped on the whole subtree so restore brings
+  back exactly what was trashed together. Trash is owner-only and hidden from listings, search, shares and links.
+  An hourly `Janitor` purges trash older than 30 days, drops week-old upload sessions and runs GC: one
+  `DELETE … RETURNING` of chunks older than 1 h that no file or version references, then deletes the blobs
+  (local or via the new gRPC `DeleteBlob`). The grace period protects in-flight uploads; the FK makes the
+  dedup-vs-GC race fail loudly instead of corrupting a file.
+- **Versions**: same name in the same folder = new version, FileId stays stable so shares and links keep working.
+  Restore swaps the chosen version in and keeps the current one as history. Old versions cost only changed chunks.
+- **Make a copy** of a file or a **whole folder tree**: rows only (`INSERT … SELECT` of the chunk list), 0 bytes.
+- **Starred, Recent** (files and folders), client-side sort and grid view with lazy image thumbnails.
+- **Folder zip** streamed from chunks; also on public links.
+- **Audio/video**: a seekable `ChunkedFileStream` + ASP.NET range processing gives `206` + seeking; still hash-verified.
+- **Resumable uploads** (Google protocol): `POST /api/uploads` → `PUT` slices with `Content-Range`; `308` + `Range`
+  (and a JSON `{received}` body, since .NET's HttpClient hides `Range` on responses). The UI sends 8 MB slices,
+  retries with backoff and resumes after a reload.
+- **Activity** per item; a folder shows events for everything inside it.
+- **Premium UI** (design system generated with ui-ux-pro-max, persisted in `docs/design-system/`): Plus Jakarta Sans
+  (self-hosted), Phosphor icon sprite, light + dark tokens checked by `scripts/contrast.js` (all text pairs ≥ 4.5:1),
+  details panel (info, versions, activity), styled dialogs, Undo toasts, skeletons, empty states, drawer navigation
+  below 768 px, keyboard menus, reduced-motion support. Verified with a headless Chromium run at 375–1440 px.
+- `ponytail:` resumable uploads write bytes twice (temp file, then chunks); thumbnails are the images themselves.
 
 ## #9 Old UI kept showing after an update
 

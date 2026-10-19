@@ -20,6 +20,7 @@ Every diagram here is [Mermaid](https://mermaid.js.org). GitHub renders them in 
 | 13 | On-disk layout | Where do the bytes live? |
 | 14 | Concept map | How do all the ideas fit together? |
 | 15 | Authorization | Who may do what to which file or folder? |
+| 16 | Trash, versions and GC | When do bytes actually get freed? |
 
 ---
 
@@ -236,6 +237,11 @@ erDiagram
   Folders ||--o{ Files : "contains"
   Files ||--o{ File_Chunks : "has ordered"
   Chunks ||--o{ File_Chunks : "referenced by"
+  Files ||--o{ Versions : "history"
+  Versions ||--o{ Version_Chunks : "has ordered"
+  Chunks ||--o{ Version_Chunks : "referenced by"
+  Users ||--o{ Stars : "stars"
+  Users ||--o{ Uploads : "resumes"
 
   Users {
     string UserId PK "lowercase username"
@@ -251,8 +257,10 @@ erDiagram
     string FolderId PK
     string UserId "owner"
     string ParentId FK "null = root"
-    string Name "unique per parent"
+    string Name "unique per parent among live folders"
     string CreatedAt
+    string UpdatedAt
+    string TrashedAt "null = live"
   }
   Files {
     string FileId PK
@@ -262,6 +270,44 @@ erDiagram
     int TotalSize
     string Sha256 "null for delta-synced files"
     string Chunker
+    string CreatedAt
+    string UpdatedAt
+    string TrashedAt "null = live"
+  }
+  Versions {
+    string VersionId PK
+    string FileId FK
+    int TotalSize
+    string Sha256
+    string Chunker
+    string CreatedAt
+  }
+  Version_Chunks {
+    string VersionId PK, FK
+    int SequenceIndex PK
+    string ChunkHash FK
+  }
+  Stars {
+    string UserId PK
+    string ItemId PK
+    string ItemType
+  }
+  Activity {
+    int Id PK
+    string ItemType
+    string ItemId
+    string UserId
+    string Action
+    string Detail
+    string At
+  }
+  Uploads {
+    string UploadId PK "bytes so far = size of the .part file"
+    string UserId FK
+    string OwnerId
+    string FolderId
+    string FileName
+    int TotalSize
     string CreatedAt
   }
   Shares {
@@ -643,3 +689,25 @@ flowchart TD
 
 Every file, folder, manifest and chunk endpoint goes through the same check (`SqliteDrive.AccessAsync`), so a
 new endpoint cannot accidentally skip it by re-implementing the rules.
+
+---
+
+## 16. Trash, versions and GC
+
+```mermaid
+flowchart TD
+  D["DELETE /api/files|folders/{id}"] --> T["Stamp one TrashedAt on the item and its whole subtree"]
+  T --> H["Hidden from listings, search, shares, public links"]
+  H -->|"Restore (clears that timestamp)"| L["Live again, same ids"]
+  H -->|"Delete forever / Empty trash / 30 days (Janitor)"| R["Rows deleted; File_Chunks and Version_Chunks cascade"]
+  U["Upload with an existing name"] --> V["Old manifest copied to Versions + Version_Chunks"]
+  V --> L
+  R --> G{"Hourly GC: chunk older than 1 h and referenced by no file and no version?"}
+  G -->|"yes: DELETE ... RETURNING ChunkHash"| B["Delete blob (local disk or gRPC DeleteBlob)"]
+  G -->|"no: still shared by a copy, a version or another user"| K["Keep"]
+```
+
+Copies and versions only add rows that point at existing chunks, so a chunk is freed only when the last file or
+version that references it is gone. The 1-hour grace keeps chunks of an upload still in flight; if an upload dedups
+against a chunk GC deletes at the same moment, the `File_Chunks` foreign key makes that commit fail instead of
+saving a manifest with a missing chunk.
