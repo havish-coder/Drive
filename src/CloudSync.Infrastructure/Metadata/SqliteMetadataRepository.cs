@@ -70,6 +70,55 @@ public sealed class SqliteMetadataRepository : IMetadataRepository
         PRAGMA user_version = 2;
         """;
 
+    // v3: trash, versions, stars, activity, resumable upload sessions. Folder names only need to be unique among
+    // live (non-trashed) siblings, so a trashed "Photos" doesn't block creating a new one.
+    private const string SchemaV3 = """
+        ALTER TABLE Files ADD COLUMN UpdatedAt TEXT NULL;
+        ALTER TABLE Files ADD COLUMN TrashedAt TEXT NULL;
+        ALTER TABLE Folders ADD COLUMN UpdatedAt TEXT NULL;
+        ALTER TABLE Folders ADD COLUMN TrashedAt TEXT NULL;
+        DROP INDEX UX_Folders_Name;
+        CREATE UNIQUE INDEX UX_Folders_Name ON Folders(UserId, IFNULL(ParentId, ''), Name COLLATE NOCASE) WHERE TrashedAt IS NULL;
+        CREATE TABLE Versions (
+            VersionId TEXT PRIMARY KEY,
+            FileId    TEXT NOT NULL REFERENCES Files(FileId) ON DELETE CASCADE,
+            TotalSize INTEGER NOT NULL,
+            Sha256    TEXT NULL,
+            Chunker   TEXT NOT NULL,
+            CreatedAt TEXT NOT NULL);
+        CREATE INDEX IX_Versions_File ON Versions(FileId);
+        CREATE TABLE Version_Chunks (
+            VersionId     TEXT NOT NULL REFERENCES Versions(VersionId) ON DELETE CASCADE,
+            SequenceIndex INTEGER NOT NULL,
+            ChunkHash     TEXT NOT NULL REFERENCES Chunks(ChunkHash),
+            PRIMARY KEY (VersionId, SequenceIndex));
+        CREATE INDEX IX_VersionChunks_ChunkHash ON Version_Chunks(ChunkHash);
+        CREATE TABLE Stars (
+            UserId    TEXT NOT NULL,
+            ItemId    TEXT NOT NULL,
+            ItemType  TEXT NOT NULL,
+            CreatedAt TEXT NOT NULL,
+            PRIMARY KEY (UserId, ItemId));
+        CREATE TABLE Activity (
+            Id       INTEGER PRIMARY KEY AUTOINCREMENT,
+            ItemType TEXT NOT NULL,
+            ItemId   TEXT NOT NULL,
+            UserId   TEXT NOT NULL,
+            Action   TEXT NOT NULL,
+            Detail   TEXT NULL,
+            At       TEXT NOT NULL);
+        CREATE INDEX IX_Activity_Item ON Activity(ItemId, Id);
+        CREATE TABLE Uploads (
+            UploadId  TEXT PRIMARY KEY,
+            UserId    TEXT NOT NULL,
+            OwnerId   TEXT NOT NULL,
+            FolderId  TEXT NULL,
+            FileName  TEXT NOT NULL,
+            TotalSize INTEGER NOT NULL,
+            CreatedAt TEXT NOT NULL);
+        PRAGMA user_version = 3;
+        """;
+
     private readonly string _connectionString;
 
     public SqliteMetadataRepository(string connectionString)
@@ -92,10 +141,14 @@ public sealed class SqliteMetadataRepository : IMetadataRepository
 
         await using var version = connection.CreateCommand();
         version.CommandText = "PRAGMA user_version";
-        if ((long)(await version.ExecuteScalarAsync(ct))! >= 2) return;
-        await using var tx = await connection.BeginTransactionAsync(ct);
-        await ExecuteAsync(connection, SchemaV2, ct);
-        await tx.CommitAsync(ct);
+        var current = (long)(await version.ExecuteScalarAsync(ct))!;
+        foreach (var (target, sql) in new[] { (2L, SchemaV2), (3L, SchemaV3) })
+        {
+            if (current >= target) continue;
+            await using var tx = await connection.BeginTransactionAsync(ct);
+            await ExecuteAsync(connection, sql, ct);
+            await tx.CommitAsync(ct);
+        }
     }
 
     public async Task<bool> ChunkExistsAsync(string hash, CancellationToken ct = default)
@@ -146,8 +199,8 @@ public sealed class SqliteMetadataRepository : IMetadataRepository
         {
             cmd.Transaction = tx;
             cmd.CommandText = """
-                INSERT INTO Files (FileId, UserId, FileName, TotalSize, Sha256, Chunker, CreatedAt, FolderId)
-                VALUES ($id, $user, $name, $size, $sha, $chunker, $at, $folder)
+                INSERT INTO Files (FileId, UserId, FileName, TotalSize, Sha256, Chunker, CreatedAt, FolderId, UpdatedAt)
+                VALUES ($id, $user, $name, $size, $sha, $chunker, $at, $folder, $at)
                 """;
             cmd.Parameters.AddWithValue("$id", file.FileId.ToString());
             cmd.Parameters.AddWithValue("$user", file.UserId);
@@ -160,11 +213,45 @@ public sealed class SqliteMetadataRepository : IMetadataRepository
             await cmd.ExecuteNonQueryAsync(ct);
         }
 
+        await InsertChunksAsync(connection, tx, file.FileId, chunks, ct);
+        await tx.CommitAsync(ct);
+    }
+
+    public async Task SaveVersionAsync(FileRecord file, IReadOnlyList<FileChunkRecord> chunks, CancellationToken ct = default)
+    {
+        await using var connection = await OpenAsync(ct);
+        await using var tx = (SqliteTransaction)await connection.BeginTransactionAsync(ct);
+        await using (var cmd = connection.CreateCommand())
+        {
+            cmd.Transaction = tx;
+            cmd.CommandText = """
+                INSERT INTO Versions (VersionId, FileId, TotalSize, Sha256, Chunker, CreatedAt)
+                    SELECT $v, FileId, TotalSize, Sha256, Chunker, COALESCE(UpdatedAt, CreatedAt) FROM Files WHERE FileId = $id;
+                INSERT INTO Version_Chunks (VersionId, SequenceIndex, ChunkHash)
+                    SELECT $v, SequenceIndex, ChunkHash FROM File_Chunks WHERE FileId = $id;
+                DELETE FROM File_Chunks WHERE FileId = $id;
+                UPDATE Files SET TotalSize = $size, Sha256 = $sha, Chunker = $chunker, UpdatedAt = $at WHERE FileId = $id;
+                """;
+            cmd.Parameters.AddWithValue("$v", Guid.NewGuid().ToString());
+            cmd.Parameters.AddWithValue("$id", file.FileId.ToString());
+            cmd.Parameters.AddWithValue("$size", file.TotalSize);
+            cmd.Parameters.AddWithValue("$sha", (object?)file.Sha256 ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("$chunker", file.Chunker);
+            cmd.Parameters.AddWithValue("$at", DateTimeOffset.UtcNow.ToString("O"));
+            await cmd.ExecuteNonQueryAsync(ct);
+        }
+        await InsertChunksAsync(connection, tx, file.FileId, chunks, ct);
+        await tx.CommitAsync(ct);
+    }
+
+    private static async Task InsertChunksAsync(
+        SqliteConnection connection, SqliteTransaction tx, Guid fileId, IReadOnlyList<FileChunkRecord> chunks, CancellationToken ct)
+    {
         await using (var cmd = connection.CreateCommand())
         {
             cmd.Transaction = tx;
             cmd.CommandText = "INSERT INTO File_Chunks (FileId, SequenceIndex, ChunkHash) VALUES ($id, $seq, $hash)";
-            var id = cmd.Parameters.AddWithValue("$id", file.FileId.ToString());
+            cmd.Parameters.AddWithValue("$id", fileId.ToString());
             var seq = cmd.Parameters.Add("$seq", SqliteType.Integer);
             var hash = cmd.Parameters.Add("$hash", SqliteType.Text);
             cmd.Prepare();
@@ -175,8 +262,6 @@ public sealed class SqliteMetadataRepository : IMetadataRepository
                 await cmd.ExecuteNonQueryAsync(ct);
             }
         }
-
-        await tx.CommitAsync(ct);
     }
 
     public async Task<FileManifest?> GetManifestAsync(Guid fileId, CancellationToken ct = default)
@@ -216,7 +301,7 @@ public sealed class SqliteMetadataRepository : IMetadataRepository
         cmd.CommandText = """
             SELECT (SELECT COUNT(*) FROM Files),
                    (SELECT COUNT(*) FROM Chunks),
-                   (SELECT COALESCE(SUM(TotalSize), 0) FROM Files),
+                   (SELECT COALESCE(SUM(TotalSize), 0) FROM Files) + (SELECT COALESCE(SUM(TotalSize), 0) FROM Versions),
                    (SELECT COALESCE(SUM(ByteSize), 0) FROM Chunks)
             """;
         await using var reader = await cmd.ExecuteReaderAsync(ct);
@@ -224,7 +309,8 @@ public sealed class SqliteMetadataRepository : IMetadataRepository
         return new StorageStats(reader.GetInt64(0), reader.GetInt64(1), reader.GetInt64(2), reader.GetInt64(3));
     }
 
-    internal const string SelectFile = "SELECT FileId, UserId, FileName, TotalSize, Sha256, Chunker, CreatedAt, FolderId FROM Files";
+    internal const string SelectFile =
+        "SELECT FileId, UserId, FileName, TotalSize, Sha256, Chunker, CreatedAt, FolderId, UpdatedAt, TrashedAt FROM Files";
 
     internal static FileRecord ReadFile(SqliteDataReader r) => new(
         Guid.Parse(r.GetString(0)),
@@ -234,7 +320,9 @@ public sealed class SqliteMetadataRepository : IMetadataRepository
         r.IsDBNull(4) ? null : r.GetString(4),
         r.GetString(5),
         DateTimeOffset.Parse(r.GetString(6), CultureInfo.InvariantCulture),
-        r.IsDBNull(7) ? null : Guid.Parse(r.GetString(7)));
+        r.IsDBNull(7) ? null : Guid.Parse(r.GetString(7)),
+        r.IsDBNull(8) ? null : DateTimeOffset.Parse(r.GetString(8), CultureInfo.InvariantCulture),
+        r.IsDBNull(9) ? null : DateTimeOffset.Parse(r.GetString(9), CultureInfo.InvariantCulture));
 
     internal async Task<SqliteConnection> OpenAsync(CancellationToken ct = default)
     {

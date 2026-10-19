@@ -80,6 +80,13 @@ public sealed class BlobStorageService(LocalFileSystemBlobStore store) : BlobSto
         }
     }
 
+    public override async Task<DeleteBlobReply> DeleteBlob(DeleteBlobRequest request, ServerCallContext context)
+    {
+        if (!ContentHash.IsValid(request.Hash))
+            throw new RpcException(new Status(StatusCode.InvalidArgument, "Invalid hash."));
+        return new DeleteBlobReply { Deleted = await store.DeleteAsync(request.Hash, context.CancellationToken) };
+    }
+
     public override async Task<BlobExistsReply> BlobExists(BlobExistsRequest request, ServerCallContext context)
     {
         if (!ContentHash.IsValid(request.Hash))

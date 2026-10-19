@@ -1,6 +1,8 @@
 using System.Buffers;
+using System.IO.Compression;
 using System.IO.Pipelines;
 using CloudSync.Core;
+using CloudSync.Core.Metadata;
 using CloudSync.Core.Services;
 using CloudSync.Core.Sync;
 using CloudSync.Infrastructure.Metadata;
@@ -47,9 +49,99 @@ public static class Endpoints
             {
                 if (await DriveEndpoints.WritableOwnerAsync(ctx, drive, request.FolderId) is not { } owner) return Results.StatusCode(403);
                 var folder = request.Path is { Length: > 0 } path ? await drive.EnsurePathAsync(owner, request.FolderId, path) : request.FolderId;
-                var result = await files.CommitAsync(owner, request with { FolderId = folder }, ctx.RequestAborted);
-                return Results.Created($"/api/files/{result.FileId}", result);
+                var name = SqliteDrive.CleanName(request.FileName ?? "");
+                return Created(ctx, await SaveAsync(ctx, drive, owner, folder, name, replace =>
+                    files.CommitAsync(owner, request with { FolderId = folder, FileName = name }, ctx.RequestAborted, replace)));
             }));
+
+        // Resumable uploads, following Google Drive's protocol: create a session, PUT byte ranges, resume after a drop.
+        api.MapPost("/uploads", (NewUpload u, HttpContext ctx, SqliteDrive drive, StorageOptions storage) => Guarded(async () =>
+        {
+            if (u.Size < 0) return Results.BadRequest(new { error = "Size must be zero or more." });
+            if (await DriveEndpoints.WritableOwnerAsync(ctx, drive, u.FolderId) is not { } owner) return Results.StatusCode(403);
+            var folder = u.Path is { Length: > 0 } path ? await drive.EnsurePathAsync(owner, u.FolderId, path) : u.FolderId;
+            var session = new UploadSession(Guid.NewGuid(), ctx.UserId(), owner, folder, SqliteDrive.CleanName(u.FileName ?? ""), u.Size);
+            await drive.CreateUploadAsync(session);
+            Directory.CreateDirectory(storage.UploadsPath);
+            File.Create(PartPath(storage, session.UploadId)).Dispose();
+            return Results.Created($"/api/uploads/{session.UploadId}", new { uploadId = session.UploadId });
+        }));
+        api.MapPut("/uploads/{id:guid}", ResumeUploadAsync);
+    }
+
+    internal static string PartPath(StorageOptions storage, Guid id) => Path.Combine(storage.UploadsPath, $"{id}.part");
+
+    /// <summary>
+    /// <c>Content-Range: bytes a-b/total</c> appends a slice (a must equal the bytes already received);
+    /// <c>bytes */total</c> asks for status. Incomplete → 308 with <c>Range: bytes=0-n</c>; complete → the file.
+    /// ponytail: the slices land in a temp file and are read again by the chunker (bytes hit the disk twice).
+    /// </summary>
+    private static async Task<IResult> ResumeUploadAsync(Guid id, HttpContext ctx, SqliteDrive drive, FileService files, StorageOptions storage)
+    {
+        if (await drive.GetUploadAsync(id) is not { } session || session.UserId != ctx.UserId()) return Results.NotFound();
+        if (!ContentRangeHeaderValue.TryParse(ctx.Request.Headers.ContentRange.ToString(), out var range) || range.Length != session.TotalSize)
+            return Results.BadRequest(new { error = "Content-Range must be 'bytes a-b/total' or 'bytes */total' with the session's total size." });
+
+        var part = PartPath(storage, id);
+        var received = new FileInfo(part).Length;
+        if (range.HasRange)
+        {
+            if (range.From != received) return Incomplete(ctx, received);
+            DisableBodyLimit(ctx);
+            FileStream file;
+            try { file = new FileStream(part, FileMode.Append, FileAccess.Write, FileShare.None); }
+            catch (IOException) { return Results.Conflict(new { error = "Another request is writing to this upload." }); }
+            await using (file)
+            {
+                try { await ctx.Request.Body.CopyToAsync(file, ctx.RequestAborted); }
+                catch when (ctx.RequestAborted.IsCancellationRequested) { return Results.Empty; } // what arrived is kept; the client resumes
+            }
+            received = new FileInfo(part).Length;
+            if (received > session.TotalSize)
+            {
+                await drive.DeleteUploadAsync(id);
+                File.Delete(part);
+                return Results.BadRequest(new { error = "More bytes than the declared size; upload discarded." });
+            }
+        }
+        if (received < session.TotalSize) return Incomplete(ctx, received);
+
+        UploadResult result;
+        await using (var stream = new FileStream(part, FileMode.Open, FileAccess.Read, FileShare.Read, 1, FileOptions.SequentialScan))
+        {
+            var source = PipeReader.Create(stream, ReaderOptions);
+            result = await SaveAsync(ctx, drive, session.OwnerId, session.FolderId, session.FileName, replace =>
+                files.UploadAsync(session.OwnerId, session.FileName, source, ctx.RequestAborted, session.FolderId, replace));
+            await source.CompleteAsync();
+        }
+        await drive.DeleteUploadAsync(id);
+        File.Delete(part);
+        return Created(ctx, result);
+    }
+
+    private static IResult Incomplete(HttpContext ctx, long received)
+    {
+        // 308 = "Resume Incomplete" in Google's protocol. Range is the standard signal; the JSON body is for clients
+        // (like .NET's HttpClient) that drop a Range header on responses.
+        if (received > 0) ctx.Response.Headers.Range = $"bytes=0-{received - 1}";
+        return Results.Json(new { received }, statusCode: StatusCodes.Status308PermanentRedirect);
+    }
+
+    /// <summary>Every way of storing a file ends here: same name in the same folder becomes a new version, and it's logged.</summary>
+    internal static async Task<UploadResult> SaveAsync(HttpContext ctx, SqliteDrive drive, string owner, Guid? folder, string name,
+        Func<Guid?, Task<UploadResult>> store)
+    {
+        var existing = await drive.FindFileAsync(owner, folder, name);
+        var result = await store(existing);
+        await drive.TouchAsync(folder);
+        await drive.LogAsync(ctx.UserId(), "file", result.FileId, existing is null ? "uploaded" : "uploaded a new version", name);
+        return result;
+    }
+
+    private static IResult Created(HttpContext ctx, UploadResult result)
+    {
+        if (result.Timings is { } timings) ctx.Response.Headers["Server-Timing"] = string.Join(", ", timings.Select(t => $"{t.Key};dur={t.Value}"));
+        return Results.Created($"/api/files/{result.FileId}", result);
     }
 
     private static async Task<IResult> UploadAsync(HttpContext ctx, FileService files, SqliteDrive drive, string? fileName, Guid? folderId, string? path)
@@ -81,10 +173,11 @@ public static class Endpoints
 
         async Task<IResult> StoreAsync(PipeReader source, string name)
         {
-            var result = await files.UploadAsync(owner, SqliteDrive.CleanName(Path.GetFileName(name)), source, ctx.RequestAborted, folder);
+            var clean = SqliteDrive.CleanName(Path.GetFileName(name));
+            var result = await SaveAsync(ctx, drive, owner, folder, clean, replace =>
+                files.UploadAsync(owner, clean, source, ctx.RequestAborted, folder, replace));
             await source.CompleteAsync();
-            ctx.Response.Headers["Server-Timing"] = string.Join(", ", result.Timings!.Select(t => $"{t.Key};dur={t.Value}"));
-            return Results.Created($"/api/files/{result.FileId}", result);
+            return Created(ctx, result);
         }
     }
 
@@ -93,23 +186,26 @@ public static class Endpoints
     private static async Task<bool> CanReadAsync(HttpContext ctx, SqliteDrive drive, Guid fileId) =>
         await drive.GetFileAsync(fileId) is { } file && await drive.FileRoleAsync(ctx.UserId(), file) >= Role.Viewer;
 
-    /// <summary>
-    /// Streams a file. Inline (preview) only for raster images and PDF: an HTML or SVG file shown inline would run its
-    /// scripts on our origin (stored XSS), so everything else is always a download.
-    /// </summary>
     internal static async Task SendFileAsync(HttpContext ctx, FileService files, ILoggerFactory logs, Guid fileId, bool inline)
     {
         if (await files.GetManifestAsync(fileId, ctx.RequestAborted) is not { } manifest)
-        {
             ctx.Response.StatusCode = StatusCodes.Status404NotFound;
-            return;
-        }
+        else
+            await SendManifestAsync(ctx, files, logs, manifest, inline);
+    }
 
+    /// <summary>
+    /// Streams a file (or a past version). Inline only for raster images, PDF, audio and video: an HTML or SVG file
+    /// shown inline would run its scripts on our origin (stored XSS), so everything else is always a download.
+    /// A <c>Range</c> request (media seeking, resumed download) is served from a seekable view over the chunks.
+    /// </summary>
+    internal static async Task SendManifestAsync(HttpContext ctx, FileService files, ILoggerFactory logs, FileManifest manifest, bool inline)
+    {
         var previewable = ContentTypes.TryGetContentType(manifest.File.FileName, out var type) &&
-            (type == "application/pdf" || (type.StartsWith("image/") && type != "image/svg+xml"));
+            (type is "application/pdf" || type.StartsWith("audio/") || type.StartsWith("video/") ||
+             (type.StartsWith("image/") && type != "image/svg+xml"));
         inline &= previewable;
         ctx.Response.ContentType = inline ? type! : "application/octet-stream";
-        ctx.Response.ContentLength = manifest.File.TotalSize;
         ctx.Response.Headers.XContentTypeOptions = "nosniff";
         ctx.Response.Headers.ContentDisposition = new ContentDispositionHeaderValue(inline ? "inline" : "attachment")
         {
@@ -117,6 +213,14 @@ public static class Endpoints
         }.ToString();
         if (manifest.File.Sha256 is { } sha) ctx.Response.Headers["X-Content-SHA256"] = sha;
 
+        if (ctx.Request.Headers.Range.Count > 0)
+        {
+            await Results.Stream(files.OpenRead(manifest), ctx.Response.ContentType, enableRangeProcessing: true).ExecuteAsync(ctx);
+            return;
+        }
+
+        ctx.Response.Headers.AcceptRanges = "bytes";
+        ctx.Response.ContentLength = manifest.File.TotalSize;
         try
         {
             await files.DownloadAsync(manifest, ctx.Response.Body, ctx.RequestAborted);
@@ -124,8 +228,24 @@ public static class Endpoints
         catch (ChunkIntegrityException ex)
         {
             // Headers are already sent; cutting the connection is the only honest signal left.
-            logs.CreateLogger("CloudSync.Download").LogError(ex, "Aborting download of {FileId}", fileId);
+            logs.CreateLogger("CloudSync.Download").LogError(ex, "Aborting download of {FileId}", manifest.File.FileId);
             ctx.Abort();
+        }
+    }
+
+    /// <summary>A folder as a zip, built on the fly from verified chunks: no temp file, nothing buffered whole.</summary>
+    internal static async Task SendZipAsync(HttpContext ctx, SqliteDrive drive, FileService files, FolderItem folder)
+    {
+        // ZipArchive writes entry headers and the central directory synchronously; allow it for this response only.
+        if (ctx.Features.Get<IHttpBodyControlFeature>() is { } body) body.AllowSynchronousIO = true;
+        ctx.Response.ContentType = "application/zip";
+        ctx.Response.Headers.ContentDisposition = new ContentDispositionHeaderValue("attachment") { FileNameStar = $"{folder.Name}.zip" }.ToString();
+        using var zip = new ZipArchive(ctx.Response.Body, ZipArchiveMode.Create, leaveOpen: true);
+        foreach (var (path, fileId) in await drive.ZipEntriesAsync(folder.Id))
+        {
+            if (await files.GetManifestAsync(fileId, ctx.RequestAborted) is not { } manifest) continue;
+            await using var entry = zip.CreateEntry(path, CompressionLevel.NoCompression).Open();
+            await files.DownloadAsync(manifest, entry, ctx.RequestAborted);
         }
     }
 
@@ -210,3 +330,5 @@ public static class Endpoints
             feature.MaxRequestBodySize = null;
     }
 }
+
+public sealed record NewUpload(string? FileName, long Size, Guid? FolderId, string? Path);

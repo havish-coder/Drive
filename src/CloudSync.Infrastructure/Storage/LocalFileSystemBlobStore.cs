@@ -78,6 +78,14 @@ public sealed class LocalFileSystemBlobStore : IBlobStore
         return total;
     }
 
+    public Task<bool> DeleteAsync(string hash, CancellationToken ct = default)
+    {
+        var path = PathFor(hash);
+        if (!File.Exists(path)) return Task.FromResult(false);
+        File.Delete(path);
+        return Task.FromResult(true);
+    }
+
     /// <summary>Raw stream access for the storage worker's streaming reads.</summary>
     public FileStream OpenRead(string hash) =>
         new(PathFor(hash), FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 1,

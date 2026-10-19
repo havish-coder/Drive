@@ -15,6 +15,9 @@ public sealed class StorageOptions
     public string Mode { get; set; } = "Local";
     public string RootPath { get; set; } = "data/blobs";
     public string WorkerUrl { get; set; } = "http://localhost:5100";
+
+    /// <summary>Where in-progress resumable uploads are kept until they complete.</summary>
+    public string UploadsPath { get; set; } = "data/uploads";
 }
 
 /// <summary>Composition root: the only place that knows which concrete strategies are in use.</summary>
@@ -33,6 +36,7 @@ public static class CloudSyncServiceCollectionExtensions
         services.AddSingleton<IMetadataRepository>(sp => sp.GetRequiredService<SqliteMetadataRepository>());
         services.AddSingleton<SqliteDrive>();
         services.AddSingleton<RouteMetrics>();
+        services.AddHostedService<Janitor>();
 
         services.AddSingleton<IBlobStore>(sp =>
         {

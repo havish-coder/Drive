@@ -13,6 +13,9 @@ public interface IBlobStore
     Task<int> ReadAsync(string hash, Memory<byte> destination, CancellationToken ct = default);
 
     Task<bool> ExistsAsync(string hash, CancellationToken ct = default);
+
+    /// <summary>Removes the blob (garbage collection). Returns false if it was already gone.</summary>
+    Task<bool> DeleteAsync(string hash, CancellationToken ct = default);
 }
 
 public static class BlobKey

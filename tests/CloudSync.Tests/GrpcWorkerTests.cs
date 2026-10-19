@@ -53,6 +53,23 @@ public class GrpcWorkerTests
     }
 
     [Fact]
+    public async Task Worker_deletes_blobs_for_garbage_collection()
+    {
+        using var dir = new TempDir();
+        var (worker, client) = StartWorker(dir);
+        await using var _ = worker;
+        var store = new GrpcBlobStore(client);
+        var data = RandomBytes(1000, seed: 31);
+        var hash = ContentHash.Compute(data);
+        await store.PutAsync(hash, data);
+        Assert.Equal(1, CountBlobs(dir.Path("worker-blobs")));
+
+        Assert.True(await store.DeleteAsync(hash));
+        Assert.False(await store.DeleteAsync(hash));
+        Assert.Equal(0, CountBlobs(dir.Path("worker-blobs")));
+    }
+
+    [Fact]
     public async Task Worker_rejects_a_payload_that_does_not_match_its_hash()
     {
         using var dir = new TempDir();

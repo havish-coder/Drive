@@ -10,20 +10,20 @@ namespace CloudSync.Tests;
 
 public class DriveTests
 {
-    private static async Task<Guid> FolderAsync(HttpClient http, string name, Guid? parent = null)
+    internal static async Task<Guid> FolderAsync(HttpClient http, string name, Guid? parent = null)
     {
         var response = await http.PostAsJsonAsync("/api/folders", new { name, parentId = parent });
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
     }
 
-    private static async Task<JsonElement> ChildrenAsync(HttpClient http, Guid? folder) =>
+    internal static async Task<JsonElement> ChildrenAsync(HttpClient http, Guid? folder) =>
         await http.GetFromJsonAsync<JsonElement>($"/api/folders/{folder?.ToString() ?? "root"}/children");
 
-    private static IEnumerable<string> Names(JsonElement listing, string kind) =>
+    internal static IEnumerable<string> Names(JsonElement listing, string kind) =>
         listing.GetProperty(kind).EnumerateArray().Select(e => e.GetProperty(kind == "files" ? "fileName" : "name").GetString()!);
 
-    private static Task<UploadResult> UploadAsync(HttpClient http, string name, Guid? folder = null, string? path = null) =>
+    internal static Task<UploadResult> UploadAsync(HttpClient http, string name, Guid? folder = null, string? path = null) =>
         ApiTests.UploadRawAsync(http, RandomBytes(5000, name.GetHashCode()), name,
             (folder is null ? "" : $"&folderId={folder}") + (path is null ? "" : $"&path={path}"));
 
@@ -91,7 +91,10 @@ public class DriveTests
         var photos = Names(await ChildrenAsync(http, null), "folders").Count(n => n == "Photos");
         Assert.Equal(1, photos);
 
+        // Delete = move to trash; deleting forever from the trash removes the folder and its contents.
         Assert.Equal(HttpStatusCode.NoContent, (await http.DeleteAsync($"/api/folders/{b}")).StatusCode);
+        Assert.DoesNotContain("Docs", Names(await ChildrenAsync(http, null), "folders"));
+        Assert.Equal(HttpStatusCode.NoContent, (await http.DeleteAsync($"/api/trash/folder/{b}")).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await http.GetAsync($"/api/files/{file.FileId}")).StatusCode); // cascaded
     }
 

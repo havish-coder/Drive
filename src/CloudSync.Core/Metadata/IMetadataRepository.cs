@@ -4,7 +4,7 @@ public sealed record ChunkRecord(string ChunkHash, string StoragePath, long Byte
 
 public sealed record FileRecord(
     Guid FileId, string UserId, string FileName, long TotalSize, string? Sha256, string Chunker, DateTimeOffset CreatedAt,
-    Guid? FolderId = null);
+    Guid? FolderId = null, DateTimeOffset? UpdatedAt = null, DateTimeOffset? TrashedAt = null);
 
 public sealed record FileChunkRecord(int SequenceIndex, string ChunkHash);
 
@@ -32,6 +32,12 @@ public interface IMetadataRepository
 
     /// <summary>Writes the file row and its ordered chunk list in one transaction.</summary>
     Task SaveFileAsync(FileRecord file, IReadOnlyList<FileChunkRecord> chunks, CancellationToken ct = default);
+
+    /// <summary>
+    /// New content for an existing file (same FileId): the current manifest becomes a version, then
+    /// <paramref name="file"/>'s size/hash/chunker and <paramref name="chunks"/> become current. One transaction.
+    /// </summary>
+    Task SaveVersionAsync(FileRecord file, IReadOnlyList<FileChunkRecord> chunks, CancellationToken ct = default);
 
     Task<FileManifest?> GetManifestAsync(Guid fileId, CancellationToken ct = default);
 

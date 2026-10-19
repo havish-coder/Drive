@@ -54,7 +54,8 @@ public static class TestUtil
     /// <summary>Registers the user and returns a client holding their session cookie.</summary>
     public static async Task<HttpClient> ClientForAsync(WebApplicationFactory<ApiMarker> api, string user)
     {
-        var http = api.CreateClient();
+        // No auto-redirect: a resumable upload's 308 "Resume Incomplete" has no Location and must reach the caller.
+        var http = api.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
         (await http.PostAsJsonAsync("/api/auth/register", new { userName = user, password = "password123" })).EnsureSuccessStatusCode();
         return http;
     }
@@ -65,6 +66,7 @@ public static class TestUtil
         {
             builder.UseSetting("CloudSync:Storage:Mode", "Local");
             builder.UseSetting("CloudSync:Storage:RootPath", dir.Path("blobs"));
+            builder.UseSetting("CloudSync:Storage:UploadsPath", dir.Path("uploads"));
             builder.UseSetting("CloudSync:Database:ConnectionString", $"Data Source={dir.Path("meta.db")}");
             builder.UseSetting("CloudSync:Chunking:Algorithm", "FixedSize");
             builder.UseSetting("CloudSync:Chunking:ChunkSize", chunkSize.ToString());

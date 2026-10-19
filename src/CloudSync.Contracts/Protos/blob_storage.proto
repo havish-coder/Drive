@@ -11,6 +11,8 @@ service BlobStorage {
   rpc PutBlob (stream PutBlobRequest) returns (PutBlobReply);
   rpc ReadBlob (ReadBlobRequest) returns (stream BlobFrame);
   rpc BlobExists (BlobExistsRequest) returns (BlobExistsReply);
+  // Garbage collection: the gateway decides a chunk is unreferenced, the worker removes its bytes.
+  rpc DeleteBlob (DeleteBlobRequest) returns (DeleteBlobReply);
 }
 
 message BlobHeader {
@@ -44,4 +46,12 @@ message BlobExistsRequest {
 
 message BlobExistsReply {
   bool exists = 1;
+}
+
+message DeleteBlobRequest {
+  string hash = 1;
+}
+
+message DeleteBlobReply {
+  bool deleted = 1;
 }

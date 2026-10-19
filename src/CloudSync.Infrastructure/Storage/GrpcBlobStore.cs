@@ -43,6 +43,9 @@ public sealed class GrpcBlobStore(BlobStorage.BlobStorageClient client) : IBlobS
         return total;
     }
 
+    public async Task<bool> DeleteAsync(string hash, CancellationToken ct = default) =>
+        (await client.DeleteBlobAsync(new DeleteBlobRequest { Hash = hash }, cancellationToken: ct)).Deleted;
+
     public async Task<bool> ExistsAsync(string hash, CancellationToken ct = default) =>
         (await client.BlobExistsAsync(new BlobExistsRequest { Hash = hash }, cancellationToken: ct)).Exists;
 }
